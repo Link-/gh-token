@@ -1,0 +1,615 @@
+#!/usr/bin/env bash
+###############################################################################
+#   _____ _    _   _______    _              
+#  / ____| |  | | |__   __|  | |             
+# | |  __| |__| |    | | ___ | | _____ _ __  
+# | | |_ |  __  |    | |/ _ \| |/ / _ \ '_ \ 
+# | |__| | |  | |    | | (_) |   <  __/ | | |
+#  \_____|_|  |_|    |_|\___/|_|\_\___|_| |_|
+#
+#
+# Depends on:
+#   - jwt-cli (https://github.com/mike-engel/jwt-cli)
+#
+# Based on:
+#    - Bash Boilerplate: https://github.com/xwmx/bash-boilerplate
+#      Copyright (c) 2015 William Melody • hi@williammelody.com
+###############################################################################
+
+# Short form: set -u
+set -o nounset
+
+# Exit immediately if a pipeline returns non-zero.
+# Short form: set -e
+set -o errexit
+
+# Print a helpful message if a pipeline with non-zero exit code causes the
+# script to exit as described above.
+trap 'echo "Aborting due to errexit on line $LINENO. Exit code: $?" >&2' ERR
+
+# Allow the above trap be inherited by all functions in the script.
+#
+# Short form: set -E
+set -o errtrace
+
+# Return value of a pipeline is the value of the last (rightmost) command to
+# exit with a non-zero status, or zero if all commands in the pipeline exit
+# successfully.
+set -o pipefail
+
+# Set $IFS to only newline and tab.
+#
+# http://www.dwheeler.com/essays/filenames-in-shell.html
+IFS=$'\n\t'
+
+###############################################################################
+# Globals
+###############################################################################
+
+# $_ME
+#
+# This program's basename.
+_ME="$(basename "${0}")"
+
+# $_VERSION
+#
+# Manually set this to to current version of the program. Adhere to the
+# semantic versioning specification: http://semver.org
+_VERSION="0.1.0-alpha"
+
+# $DEFAULT_SUBCOMMAND
+#
+# The subcommand to be run by default, when no subcommand name is specified.
+# If the environment has an existing $DEFAULT_SUBCOMMAND set, then that value
+# is used.
+DEFAULT_SUBCOMMAND="${DEFAULT_SUBCOMMAND:-help}"
+
+###############################################################################
+# Debug
+###############################################################################
+
+# _debug()
+#
+# Usage:
+#   _debug <command> <options>...
+#
+# Description:
+#   Execute a command and print to standard error. The command is expected to
+#   print a message and should typically be either `echo`, `printf`, or `cat`.
+#
+# Example:
+#   _debug printf "Debug info. Variable: %s\\n" "$0"
+__DEBUG_COUNTER=0
+_debug() {
+  if ((${_USE_DEBUG:-0}))
+  then
+    __DEBUG_COUNTER=$((__DEBUG_COUNTER+1))
+    {
+      # Prefix debug message with "bug (U+1F41B)"
+      printf "🐛  %s " "${__DEBUG_COUNTER}"
+      "${@}"
+      printf "―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――\\n"
+    } 1>&2
+  fi
+}
+
+###############################################################################
+# Error Messages
+###############################################################################
+
+# _exit_1()
+#
+# Usage:
+#   _exit_1 <command>
+#
+# Description:
+#   Exit with status 1 after executing the specified command with output
+#   redirected to standard error. The command is expected to print a message
+#   and should typically be either `echo`, `printf`, or `cat`.
+_exit_1() {
+  {
+    printf "%s " "$(tput setaf 1)!$(tput sgr0)"
+    "${@}"
+  } 1>&2
+  exit 1
+}
+
+# _warn()
+#
+# Usage:
+#   _warn <command>
+#
+# Description:
+#   Print the specified command with output redirected to standard error.
+#   The command is expected to print a message and should typically be either
+#   `echo`, `printf`, or `cat`.
+_warn() {
+  {
+    printf "%s " "$(tput setaf 1)!$(tput sgr0)"
+    "${@}"
+  } 1>&2
+}
+
+###############################################################################
+# Utility Functions
+###############################################################################
+
+# _function_exists()
+#
+# Usage:
+#   _function_exists <name>
+#
+# Exit / Error Status:
+#   0 (success, true) If function with <name> is defined in the current
+#                     environment.
+#   1 (error,  false) If not.
+#
+# Other implementations, some with better performance:
+# http://stackoverflow.com/q/85880
+_function_exists() {
+  [ "$(type -t "${1}")" == 'function' ]
+}
+
+# _command_exists()
+#
+# Usage:
+#   _command_exists <name>
+#
+# Exit / Error Status:
+#   0 (success, true) If a command with <name> is defined in the current
+#                     environment.
+#   1 (error,  false) If not.
+#
+# Information on why `hash` is used here:
+# http://stackoverflow.com/a/677212
+_command_exists() {
+  hash "${1}" 2>/dev/null
+}
+
+# _contains()
+#
+# Usage:
+#   _contains <query> <list-item>...
+#
+# Exit / Error Status:
+#   0 (success, true)  If the item is included in the list.
+#   1 (error,  false)  If not.
+#
+# Examples:
+#   _contains "${_query}" "${_list[@]}"
+_contains() {
+  local _query="${1:-}"
+  shift
+
+  if [[ -z "${_query}"  ]] ||
+     [[ -z "${*:-}"     ]]
+  then
+    return 1
+  fi
+
+  for __element in "${@}"
+  do
+    [[ "${__element}" == "${_query}" ]] && return 0
+  done
+
+  return 1
+}
+
+# _join()
+#
+# Usage:
+#   _join <delimiter> <list-item>...
+#
+# Description:
+#   Print a string containing all <list-item> arguments separated by
+#   <delimeter>.
+#
+# Example:
+#   _join "${_delimeter}" "${_list[@]}"
+#
+# More information:
+#   https://stackoverflow.com/a/17841619
+_join() {
+  local _delimiter="${1}"
+  shift
+  printf "%s" "${1}"
+  shift
+  printf "%s" "${@/#/${_delimiter}}" | tr -d '[:space:]'
+}
+
+# _blank()
+#
+# Usage:
+#   _blank <argument>
+#
+# Exit / Error Status:
+#   0 (success, true)  If <argument> is not present or null.
+#   1 (error,  false)  If <argument> is present and not null.
+_blank() {
+  [[ -z "${1:-}" ]]
+}
+
+# _present()
+#
+# Usage:
+#   _present <argument>
+#
+# Exit / Error Status:
+#   0 (success, true)  If <argument> is present and not null.
+#   1 (error,  false)  If <argument> is not present or null.
+_present() {
+  [[ -n "${1:-}" ]]
+}
+
+# _interactive_input()
+#
+# Usage:
+#   _interactive_input
+#
+# Exit / Error Status:
+#   0 (success, true)  If the current input is interactive (eg, a shell).
+#   1 (error,  false)  If the current input is stdin / piped input.
+_interactive_input() {
+  [[ -t 0 ]]
+}
+
+# _piped_input()
+#
+# Usage:
+#   _piped_input
+#
+# Exit / Error Status:
+#   0 (success, true)  If the current input is stdin / piped input.
+#   1 (error,  false)  If the current input is interactive (eg, a shell).
+_piped_input() {
+  ! _interactive_input
+}
+
+###############################################################################
+# describe
+###############################################################################
+
+# Set or print a description for a specified subcommand or function <name>. The
+# <description> text can be passed as the second argument or as standard input.
+#
+# To make the <description> text available to other functions, `describe()`
+# assigns the text to a variable with the format `$___describe_<name>`.
+#
+# When the `--get` option is used, the description for <name> is printed, if
+# one has been set.
+#
+# NOTE:
+#
+# The `read` form of assignment is used for a balance of ease of
+# implementation and simplicity. There is an alternative assignment form
+# that could be used here:
+#
+# var="$(cat <<'HEREDOC'
+# some message
+# HEREDOC
+# )
+#
+# However, this form appears to require trailing space after backslases to
+# preserve newlines, which is unexpected. Using `read` simply requires
+# escaping backslashes, which is more common.
+describe() {
+  _debug printf "describe() \${*}: %s\\n" "$@"
+  [[ -z "${1:-}" ]] && _exit_1 printf "describe(): <name> required.\\n"
+
+  if [[ "${1}" == "--get" ]]
+  then # get ------------------------------------------------------------------
+    [[ -z "${2:-}" ]] &&
+      _exit_1 printf "describe(): <description> required.\\n"
+
+    local _name="${2:-}"
+    local _describe_var="___describe_${_name}"
+
+    if [[ -n "${!_describe_var:-}" ]]
+    then
+      printf "%s\\n" "${!_describe_var}"
+    else
+      printf "No additional information for \`%s\`\\n" "${_name}"
+    fi
+  else # set ------------------------------------------------------------------
+    if [[ -n "${2:-}" ]]
+    then # argument is present
+      read -r -d '' "___describe_${1}" <<HEREDOC
+${2}
+HEREDOC
+    else # no argument is present, so assume piped input
+      # `read` exits with non-zero status when a delimeter is not found, so
+      # avoid errors by ending statement with `|| true`.
+      read -r -d '' "___describe_${1}" || true
+    fi
+  fi
+}
+
+# Normalize Options ###########################################################
+
+# Source:
+#   https://github.com/e36freak/templates/blob/master/options
+
+# Iterate over options, breaking -ab into -a -b and --foo=bar into --foo bar
+# also turns -- into --endopts to avoid issues with things like '-o-', the '-'
+# should not indicate the end of options, but be an invalid option (or the
+# argument to the option, such as wget -qO-)
+unset options
+# while the number of arguments is greater than 0
+while ((${#}))
+do
+  case "${1}" in
+    # if option is of type -ab
+    -[!-]?*)
+      # loop over each character starting with the second
+      for ((i=1; i<${#1}; i++))
+      do
+        # extract 1 character from position 'i'
+        c="${1:i:1}"
+        # add current char to options
+        options+=("-${c}")
+      done
+      ;;
+    # if option is of type --foo=bar, split on first '='
+    --?*=*)
+      options+=("${1%%=*}" "${1#*=}")
+      ;;
+    # end of options, stop breaking them up
+    --)
+      options+=(--endopts)
+      shift
+      options+=("${@}")
+      break
+      ;;
+    # otherwise, nothing special
+    *)
+      options+=("${1}")
+      ;;
+  esac
+
+  shift
+done
+# set new positional parameters to altered options. Set default to blank.
+set -- "${options[@]:-}"
+unset options
+
+# Parse Options ###############################################################
+
+_SUBCOMMAND=""
+_SUBCOMMAND_ARGUMENTS=()
+_USE_DEBUG=0
+
+while ((${#}))
+do
+  __opt="${1}"
+
+  shift
+
+  case "${__opt}" in
+    -h|--help)
+      _SUBCOMMAND="help"
+      ;;
+    --version)
+      _SUBCOMMAND="version"
+      ;;
+    --debug)
+      _USE_DEBUG=1
+      ;;
+    *)
+      # The first non-option argument is assumed to be the subcommand name.
+      # All subsequent arguments are added to $_SUBCOMMAND_ARGUMENTS.
+      if [[ -n "${_SUBCOMMAND}" ]]
+      then
+        _SUBCOMMAND_ARGUMENTS+=("${__opt}")
+      else
+        _SUBCOMMAND="${__opt}"
+      fi
+      ;;
+  esac
+done
+
+###############################################################################
+# Main
+###############################################################################
+
+# Declare the $_DEFINED_SUBCOMMANDS array.
+_DEFINED_SUBCOMMANDS=()
+
+# _main()
+#
+# Usage:
+#   _main
+#
+# Description:
+#   The primary function for starting the program.
+#
+#   NOTE: must be called at end of program after all subcommands are defined.
+
+_main() {
+  # If $_SUBCOMMAND is blank, then set to `$DEFAULT_SUBCOMMAND`
+  if [[ -z "${_SUBCOMMAND}" ]]
+  then
+    _SUBCOMMAND="${DEFAULT_SUBCOMMAND}"
+  fi
+
+  for __name in $(declare -F)
+  do
+    # Each element has the format `declare -f function_name`, so set the name
+    # to only the 'function_name' part of the string.
+    local _function_name
+    _function_name=$(printf "%s" "${__name}" | awk '{ print $3 }')
+
+    if ! { [[ -z "${_function_name:-}"                      ]] ||
+           [[ "${_function_name}" =~ ^_(.*)                 ]] ||
+           [[ "${_function_name}" == "bats_readlinkf"       ]] ||
+           [[ "${_function_name}" == "describe"             ]] ||
+           [[ "${_function_name}" == "shell_session_update" ]]
+    }
+    then
+      _DEFINED_SUBCOMMANDS+=("${_function_name}")
+    fi
+  done
+  # Sort the list of subcommands for display purposes.
+  #  NOTE: `declare -F` returns the function name, so the `awk` command
+  #  removes the `_` from the beginning of the function name.
+
+  # If the subcommand is defined, run it, otherwise return an error.
+  if _contains "${_SUBCOMMAND}" "${_DEFINED_SUBCOMMANDS[@]:-}"
+  then
+    # Pass all comment arguments to the program except for the first ($0).
+    ${_SUBCOMMAND} "${_SUBCOMMAND_ARGUMENTS[@]:-}"
+  else
+    _exit_1 printf "Unknown subcommand: %s\\n" "${_SUBCOMMAND}"
+  fi
+}
+
+###############################################################################
+# Default Subcommands
+###############################################################################
+
+# help ########################################################################
+
+describe "help" <<HEREDOC
+Usage:
+  ${_ME} help [<subcommand>]
+
+Description:
+  Display help information for ${_ME} or a specified subcommand.
+HEREDOC
+help() {
+  if [[ "${1:-}" ]]
+  then
+    describe --get "${1}"
+  else
+    cat <<HEREDOC
+  _____ _    _   _______    _              
+ / ____| |  | | |__   __|  | |             
+| |  __| |__| |    | | ___ | | _____ _ __  
+| | |_ |  __  |    | |/ _ \| |/ / _ \ '_ \ 
+| |__| | |  | |    | | (_) |   <  __/ | | |
+ \_____|_|  |_|    |_|\___/|_|\_\___|_| |_|
+
+Generate an access token to call GitHub APIs using a GitHub App
+
+Version: ${_VERSION}
+
+Usage:
+  ${_ME} <subcommand> [--subcommand-options] [<arguments>]
+  ${_ME} -h | --help
+  ${_ME} --version
+
+Options:
+  -h --help  Display this help information.
+  --version  Display version information.
+
+Help:
+  ${_ME} help [<subcommand>]
+
+$(subcommands --)
+HEREDOC
+  fi
+}
+
+# subcommands #################################################################
+
+describe "subcommands" <<HEREDOC
+Usage:
+  ${_ME} subcommands [--raw]
+
+Options:
+  --raw  Display the subcommand list without formatting.
+
+Description:
+  Display the list of available subcommands.
+HEREDOC
+subcommands() {
+  if [[ "${1:-}" == "--raw" ]]
+  then
+    printf "%s\\n" "${_DEFINED_SUBCOMMANDS[@]}"
+  else
+    printf "Available subcommands:\\n"
+    printf "  %s\\n" "${_DEFINED_SUBCOMMANDS[@]}"
+  fi
+}
+
+# version #####################################################################
+
+describe "version" <<HEREDOC
+Usage:
+  ${_ME} ( version | --version )
+
+Description:
+  Display the current program version.
+
+  To save you the trouble, the current version is ${_VERSION}
+HEREDOC
+version() {
+  printf "%s\\n" "${_VERSION}"
+}
+
+# generate ####################################################################
+
+describe "generate" <<HEREDOC
+Usage:
+  ${_ME} generate --key /tmp/crt.key --duration 10
+
+Options:
+  --key <key>  Path to a PEM-encoded certificate and key.
+  --duration <duration>  The duration of the token in minutes. (Default = 10)
+
+Description:
+  Generates a JWT signed with the supplied key and fetches an 
+  installation token
+HEREDOC
+generate() {
+  local _arguments=()
+  local _key=
+  local _duration=10
+
+  for __arg in "${@:-}"
+  do
+    case ${__arg} in
+      -k|--key)
+        _key=${2:-}
+        shift
+        shift
+        ;;
+      -d|--duration)
+        _duration=${2:-}
+        shift
+        shift
+        ;;
+      -*)
+        _exit_1 printf "Unexpected option: %s\\n" "${__arg}"
+        ;;
+      *)
+    esac
+  done
+
+  if [[ ! $_duration == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-d | --duration can only be a number"
+  elif [[ _duration -gt 10 ]]
+  then
+    _exit_1 echo "-d | --duration cannot be more than 10 minutes"
+  elif [[ -z "$_key" ]]
+  then
+    _exit_1 echo "-k | --key <key> is required"
+  elif [[ ! -e $_key || ! -r $_key ]]
+  then
+    _exit_1 echo "-k | --key <key> not found or is not readable"
+  fi
+
+  # Check if dependencies exist
+  if ! command -v jwt >/dev/null 2>&1
+  then
+    _exit_1 echo "jwt-cli is required"
+  fi
+
+}
+
+###############################################################################
+# Run Program
+###############################################################################
+
+# Call the `_main` function after everything has been defined.
+_main
