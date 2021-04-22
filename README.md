@@ -13,4 +13,50 @@
 
 ![ghtoken demo](./images/ghtoken.png)
 
-### Parameters
+## Installation
+
+Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-bash/blob/main/ghtoken)
+
+### wget
+
+```sh
+# Download a file, name it ghtoken then do a checksum
+wget -O ghtoken \
+    https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
+    echo "b1bd0469d77666d9dec92cc8cd8c67c81794832a5b39dafb5f6c809f4e1ab12d  ghtoken" | \
+    shasum -c -
+```
+
+### curl
+
+```sh
+# Download a file, name it ghtoken following [L]ocation redirects, and 
+# automatically [C]ontinuing (resuming) a previous file transfer then 
+# do a checksum
+curl -o ghtoken \
+     -O -L -C  - \
+     https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
+     echo "b1bd0469d77666d9dec92cc8cd8c67c81794832a5b39dafb5f6c809f4e1ab12d  ghtoken" | \
+     shasum -c -
+```
+
+## Usage
+
+Compatible with [GitHub Enterprise Server](https://github.com/enterprise).
+
+```text
+
+Usage:
+  ghtoken generate --key /tmp/crt.key --duration 10
+
+Options:
+  -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
+  -i | --app_id <id>  GitHub App Id
+  -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
+  -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
+
+Description:
+  Generates a JWT signed with the supplied key and fetches an
+  installation token
+
+```
