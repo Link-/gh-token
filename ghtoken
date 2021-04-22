@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 ###############################################################################
-#   _____ _    _   _______    _              
-#  / ____| |  | | |__   __|  | |             
-# | |  __| |__| |    | | ___ | | _____ _ __  
-# | | |_ |  __  |    | |/ _ \| |/ / _ \ '_ \ 
-# | |__| | |  | |    | | (_) |   <  __/ | | |
-#  \_____|_|  |_|    |_|\___/|_|\_\___|_| |_|
+# * _____ _   *_   _______ *  _      *  *    **   *
+#  / ____| |* | | |__   __|  | |  *       *            *
+# | | *__| |_*| | *  | | ___ | | _____*_ __  *     *
+# | | |_ |* __ *|    |*|/ _ \| |/ / _ \ '_ \     *   *
+# | |__| | |  | | *  | | (_)*|   <  __/ | | |  *
+#  \_____|_|  |_|    |_|\___/|_|\_\___|_| |_|   *
 #
 #
 # Depends on:
@@ -481,12 +481,12 @@ help() {
     describe --get "${1}"
   else
     cat <<HEREDOC
-  _____ _    _   _______    _              
- / ____| |  | | |__   __|  | |             
-| |  __| |__| |    | | ___ | | _____ _ __  
-| | |_ |  __  |    | |/ _ \| |/ / _ \ '_ \ 
-| |__| | |  | |    | | (_) |   <  __/ | | |
- \_____|_|  |_|    |_|\___/|_|\_\___|_| |_|
+* _____ _   *_   _______ *  _      *  *    **   *
+ / ____| |* | | |__   __|  | |  *       *            *
+| | *__| |_*| | *  | | ___ | | _____*_ __  *     *
+| | |_ |* __ *|    |*|/ _ \| |/ / _ \ '_ \     *   *
+| |__| | |  | | *  | | (_)*|   <  __/ | | |  *
+ \_____|_|  |_|    |_|\___/|_|\_\___|_| |_|   *
 
 Generate an access token to call GitHub APIs using a GitHub App
 
@@ -553,9 +553,10 @@ Usage:
   ${_ME} generate --key /tmp/crt.key --duration 10
 
 Options:
-  --key <key>  Path to a PEM-encoded certificate and key.
-  --duration <duration>  The duration of the token in minutes. (Default = 10)
-  --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
+  -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
+  -i | --app_id <id>  GitHub App Id
+  -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
+  -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
 
 Description:
   Generates a JWT signed with the supplied key and fetches an 
