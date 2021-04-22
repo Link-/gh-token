@@ -555,6 +555,7 @@ Usage:
 Options:
   --key <key>  Path to a PEM-encoded certificate and key.
   --duration <duration>  The duration of the token in minutes. (Default = 10)
+  --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
 
 Description:
   Generates a JWT signed with the supplied key and fetches an 
@@ -563,7 +564,9 @@ HEREDOC
 generate() {
   local _arguments=()
   local _key=
+  local _app_id=
   local _duration=10
+  local _hostname="api.github.com"
 
   for __arg in "${@:-}"
   do
@@ -575,6 +578,16 @@ generate() {
         ;;
       -d|--duration)
         _duration=${2:-}
+        shift
+        shift
+        ;;
+      -h|--hostname)
+        _hostname=${2:-}
+        shift
+        shift
+        ;;
+      -i|--app-id)
+        _app_id=${2:-}
         shift
         shift
         ;;
@@ -597,14 +610,61 @@ generate() {
   elif [[ ! -e $_key || ! -r $_key ]]
   then
     _exit_1 echo "-k | --key <key> not found or is not readable"
+  elif [[ -z "$_app_id" ]]
+  then
+    _exit_1 echo "-i | --app-id <id> is required"
+  elif [[ ! "$_app_id" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-i | --app-id <id> can only be a number"
   fi
 
   # Check if dependencies exist
-  if ! command -v jwt >/dev/null 2>&1
+  if ! command -v jwt > /dev/null 2>&1
   then
     _exit_1 echo "jwt-cli is required"
   fi
 
+  # Generate the JWT
+  local _jwt
+  _jwt=$(jwt encode -A RS256 \
+                    -e $(( $(date +%s) + $(( $_duration * 60 )) )) \
+                    -i $_app_id \
+                    -P iat=$(( $(date +%s) - 60 )) \
+                    -S @$_key)
+  
+  # Get installation id
+  local _installation_id=
+  local _app_token=
+  if [[ $_hostname == "api.github.com" ]]
+  then
+    _installation_id=$(curl -s \
+                            -H "Authorization: Bearer "$_jwt \
+                            -H "Accept: application/vnd.github.v3+json" \
+                            https://$_hostname/app/installations | \
+                            jq -r ".[-1].id")
+
+    _app_token=$(curl -s \
+                      -X POST \
+                      -H "Authorization: Bearer "$_jwt \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      https://$_hostname/app/installations/$_installation_id/access_tokens | \
+                      jq -r ".token")
+    echo $_app_token
+  else
+    _installation_id=$(curl -s \
+                            -H "Authorization: Bearer "$_jwt \
+                            -H "Accept: application/vnd.github.v3+json" \
+                            https://$_hostname/api/v3/app/installations | \
+                            jq -r ".[-1].id")
+
+    _app_token=$(curl -s \
+                      -X POST \
+                      -H "Authorization: Bearer "$_jwt \
+                      -H "Accept: application/vnd.github.v3+json" \
+                      https://$_hostname/api/v3/app/installations/$_installation_id/access_tokens | \
+                      jq -r ".token")
+    echo $_app_token
+  fi
 }
 
 ###############################################################################
