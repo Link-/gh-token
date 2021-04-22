@@ -641,14 +641,25 @@ generate() {
                             -H "Authorization: Bearer "$_jwt \
                             -H "Accept: application/vnd.github.v3+json" \
                             https://$_hostname/app/installations | \
-                            jq -r ".[-1].id")
+                            jq -r 'try .[-1].id catch "failed"')
+
+    if [[ $_installation_id == "failed" ]]
+    then
+      _exit_1 echo "failed to fetch installation id"
+    fi
 
     _app_token=$(curl -s \
                       -X POST \
                       -H "Authorization: Bearer "$_jwt \
                       -H "Accept: application/vnd.github.v3+json" \
                       https://$_hostname/app/installations/$_installation_id/access_tokens | \
-                      jq -r ".token")
+                      jq -r 'try .token catch "failed"')
+    
+    if [[ $_app_token == "failed" ]]
+    then
+      _exit_1 echo "failed to create app token"
+    fi
+
     echo $_app_token
   else
     _installation_id=$(curl -s \
@@ -657,12 +668,23 @@ generate() {
                             https://$_hostname/api/v3/app/installations | \
                             jq -r ".[-1].id")
 
+    if [[ $_installation_id == "failed" ]]
+    then
+      _exit_1 echo "failed to fetch installation id"
+    fi
+
     _app_token=$(curl -s \
                       -X POST \
                       -H "Authorization: Bearer "$_jwt \
                       -H "Accept: application/vnd.github.v3+json" \
                       https://$_hostname/api/v3/app/installations/$_installation_id/access_tokens | \
                       jq -r ".token")
+    
+    if [[ $_app_token == "failed" ]]
+    then
+      _exit_1 echo "failed to create app token"
+    fi
+
     echo $_app_token
   fi
 }
