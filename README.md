@@ -9,7 +9,7 @@
 
 > Create an installation access token for a GitHub app from your terminal
 
-[Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account. Installation tokens expire 10 minutes from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
+[Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account. Installation tokens expire 1 hour from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
 
 ![ghtoken demo](./images/ghtoken.png)
 
@@ -23,7 +23,7 @@ Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-ba
 # Download a file, name it ghtoken then do a checksum
 wget -O ghtoken \
     https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-    echo "b1bd0469d77666d9dec92cc8cd8c67c81794832a5b39dafb5f6c809f4e1ab12d  ghtoken" | \
+    echo "405e8786989729683e5e8959fe9dad75f71da4d065d038a55619463edbec1b30  ghtoken" | \
     shasum -c -
 ```
 
@@ -36,7 +36,7 @@ wget -O ghtoken \
 curl -o ghtoken \
      -O -L -C  - \
      https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-     echo "b1bd0469d77666d9dec92cc8cd8c67c81794832a5b39dafb5f6c809f4e1ab12d  ghtoken" | \
+     echo "405e8786989729683e5e8959fe9dad75f71da4d065d038a55619463edbec1b30  ghtoken" | \
      shasum -c -
 ```
 
@@ -51,12 +51,21 @@ Usage:
 
 Options:
   -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
+  -b | --base64_key <key> Base64 encoded PEM certificate and key. (Optional)
   -i | --app_id <id>  GitHub App Id
   -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
   -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
+  -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
 
 Description:
   Generates a JWT signed with the supplied key and fetches an
   installation token
+```
+
+### Example in a workflow
+
+```yaml
+
+
 
 ```
