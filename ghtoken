@@ -265,6 +265,99 @@ _piped_input() {
   ! _interactive_input
 }
 
+# exists_but_not_writable() {
+# 
+_exists_but_not_writable() {
+  [[ -e "$1" ]] && ! [[ -r "$1" && -w "$1" && -x "$1" ]]
+}
+
+###############################################################################
+# _download_from()
+#
+# Usage:
+#   _download_from <url> [<outfile>]
+#
+# Description:
+#   Download the file at <url> and print to standard output or <outfile>, if
+#   present. Uses `curl` if available, falling back to `wget`. Messages from
+#   `curl` and `wget` are suppressed.
+#
+# Exit / Error Status:
+#   0 (success, true)  If the download is successful.
+#   1 (error,  false)  If there was an error.
+#
+# Examples:
+#   # Download and stream to standard output.
+#   _download_from "https://example.com" | less
+#
+#   # Download to outfile with error handling.
+#   if ! _download_from "https://example.com/example.pdf" /path/to/example.pdf
+#   then
+#     printf "Download error.\\n"
+#     exit 1
+#   fi
+_download_from() {
+  local _downloaded=0
+  local _target_path="${2:-}"
+  local _timeout=15
+  local _url="${1:-}"
+
+  if [[ -z "${_url}" ]] ||
+     [[ ! "${_url}" =~ ^https\:|^http\:|^file\:|^ftp\:|^sftp\: ]]
+  then
+    return 1
+  fi
+
+  if [[ -n "${_target_path}" ]]
+  then
+    if hash "curl" 2>/dev/null
+    then
+      curl                              \
+        --silent                        \
+        --location                      \
+        --connect-timeout "${_timeout}" \
+        "${_url}"                       \
+        --output "${_target_path}"      \
+        && _downloaded=1
+    elif hash "wget" 2>/dev/null
+    then
+      wget                              \
+        --quiet                         \
+        --connect-timeout="${_timeout}" \
+        --dns-timeout="${_timeout}"     \
+        -O "${_target_path}"            \
+        "${_url}"                       \
+        2>/dev/null                     \
+        && _downloaded=1
+    fi
+  else
+    if hash "curl" 2>/dev/null
+    then
+      curl                              \
+        --silent                        \
+        --location                      \
+        --connect-timeout "${_timeout}" \
+        "${_url}"                       \
+        && _downloaded=1
+    elif hash "wget" 2>/dev/null
+    then
+      wget                              \
+        --quiet                         \
+        --connect-timeout="${_timeout}" \
+        --dns-timeout="${_timeout}"     \
+        -O -                            \
+        "${_url}"                       \
+        2>/dev/null                     \
+        && _downloaded=1
+    fi
+  fi
+
+  if ! ((_downloaded))
+  then
+    return 1
+  fi
+}
+
 ###############################################################################
 # describe
 ###############################################################################
@@ -425,6 +518,9 @@ _DEFINED_SUBCOMMANDS=()
 #   NOTE: must be called at end of program after all subcommands are defined.
 
 _main() {
+  if [ -z "${BASH_VERSION:-}" ]; then
+    _exit_1 echo "Bash is required to interpret this script."
+  fi
   # If $_SUBCOMMAND is blank, then set to `$DEFAULT_SUBCOMMAND`
   if [[ -z "${_SUBCOMMAND}" ]]
   then
@@ -463,6 +559,66 @@ _main() {
 }
 
 ###############################################################################
+# Install jwt-cli
+# Will download the binary suitable for the running OS into the directory
+# where this script is located
+# 
+# Source: https://github.com/mike-engel/jwt-cli
+###############################################################################
+
+_install_jwt_cli() {
+  echo "installing jwt cli"
+  # First check OS.
+  local _on_os=
+  local _base_dir="$( cd "$( dirname "$0" )" && pwd )"
+
+  if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "freebsd"* ]]; then
+    _on_os="Linux"
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    _on_os="macOS"
+  else
+    _exit_1 echo "jwt-cli is only supported on macOS and Linux."
+  fi
+
+  # Check if directory is writable
+  if [[ ! -w ${_base_dir} ]]
+  then
+    _exit_1 echo "jwt-cli cannot be installed in ${_base_dir} it's not writable."
+  fi
+
+  # If running on Linux
+  local _package_name=
+  local _checksum_name=
+  local _package_version="4.0.0"
+  if [[ ! -z ${_on_os} && ${_on_os} == "Linux" ]]
+  then
+    _package_name="jwt-linux.tar.gz"
+    _checksum_name="jwt-linux.sha256"
+  elif [[ ! -z ${_on_os} && ${_on_os} == "macOS" ]]
+  then
+    _package_name="jwt-macOS.tar.gz"
+    _checksum_name="jwt-macOS.sha256"
+  fi
+
+  # Download the needed binaries
+  if ! _download_from "https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/${_package_name}" "${_base_dir}/${_package_name}"
+  then
+    _exit_1 echo "Could not download jwt-cli from https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/${_package_name}"
+  fi
+  # Download the checksum
+  if ! _download_from "https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/${_checksum_name}" "${_base_dir}/${_checksum_name}"
+  then
+    _exit_1 echo "Could not download jwt-cli checksum from https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/${_checksum_name}"
+  fi
+  # Verify package integrity
+  cat "${_base_dir}/${_checksum_name}" | shasum --check --status - || _exit_1 "Could not verify validity of the downloaded package."
+  # Extract the package content
+  tar -xf "${_base_dir}/${_package_name}"
+  # Add jwt to the PATH env variable
+  export PATH="$PATH:${_base_dir}/jwt"
+}
+
+###############################################################################
 # Default Subcommands
 ###############################################################################
 
@@ -482,7 +638,7 @@ help() {
   else
     cat <<HEREDOC
 * _____ _   *_   _______ *  _      *  *    **   *
- / ____| |* | | |__   __|  | |  *       *            *
+ / ____| |* | | |__   __|  | |  *       *         🦄  *
 | | *__| |_*| | *  | | ___ | | _____*_ __  *     *
 | | |_ |* __ *|    |*|/ _ \| |/ / _ \ '_ \     *   *
 | |__| | |  | | *  | | (_)*|   <  __/ | | |  *
@@ -550,13 +706,15 @@ version() {
 
 describe "generate" <<HEREDOC
 Usage:
-  ${_ME} generate --key /tmp/crt.key --duration 10
+  ${_ME} generate [-k|-b|-i|-d|-h|<options>]
 
 Options:
   -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
+  -b | --base64_key <key> Base64 encoded PEM certificate and key. (Optional)
   -i | --app_id <id>  GitHub App Id
   -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
   -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
+  -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
 
 Description:
   Generates a JWT signed with the supplied key and fetches an 
@@ -565,8 +723,10 @@ HEREDOC
 generate() {
   local _arguments=()
   local _key=
+  local _base64_key=
   local _app_id=
   local _duration=10
+  local _install_jwt_cli_q=0
   local _hostname="api.github.com"
 
   for __arg in "${@:-}"
@@ -574,6 +734,11 @@ generate() {
     case ${__arg} in
       -k|--key)
         _key=${2:-}
+        shift
+        shift
+        ;;
+      -b|--base64_key)
+        _base64_key=${2:-}
         shift
         shift
         ;;
@@ -587,9 +752,13 @@ generate() {
         shift
         shift
         ;;
-      -i|--app-id)
+      -i|--app_id)
         _app_id=${2:-}
         shift
+        shift
+        ;;
+      -j|--install_jwt_cli)
+        _install_jwt_cli_q=1
         shift
         ;;
       -*)
@@ -605,18 +774,20 @@ generate() {
   elif [[ _duration -gt 10 ]]
   then
     _exit_1 echo "-d | --duration cannot be more than 10 minutes"
-  elif [[ -z "$_key" ]]
+  # If neither the key nor the base64_key string have been provided, error
+  elif [[ -z "$_key" && -z "$_base64_key" ]]
   then
-    _exit_1 echo "-k | --key <key> is required"
-  elif [[ ! -e $_key || ! -r $_key ]]
+    _exit_1 echo "-k | --key <key> OR -b | --base64_key is required"
+  # If the -k | --key has been provided and the file exists and is readable
+  elif [[ ! -z "$_key" ]] && [[ ! -e $_key || ! -r $_key ]]
   then
     _exit_1 echo "-k | --key <key> not found or is not readable"
   elif [[ -z "$_app_id" ]]
   then
-    _exit_1 echo "-i | --app-id <id> is required"
+    _exit_1 echo "-i | --app_id <id> is required"
   elif [[ ! "$_app_id" == ?(-)+([0-9]) ]]
   then
-    _exit_1 echo "-i | --app-id <id> can only be a number"
+    _exit_1 echo "-i | --app_id <id> can only be a number"
   fi
 
   # Check if dependencies exist
@@ -625,7 +796,32 @@ generate() {
     _exit_1 echo "jwt-cli is required"
   fi
 
-  # Generate the JWT
+  # ;------------------------
+  # ; Install jwt-cli
+  # ;------------------------
+
+  if [[ ! -z "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 1 ]]
+  then
+    _install_jwt_cli
+  fi
+
+  # ;------------------------
+  # ; Generate the JWT
+  # ;------------------------
+
+  # If the key was provided as a base64 encoded string we need to decode it
+  # and store it in a temporary
+  if [[ ! -z "$_base64_key" ]]
+  then
+    # Make a temporary file to contain the secret
+    # this file will be deleted when the script exists, crashes or is stopped
+    _key=$(printf "%s.pem" $(mktemp))
+    printf "%s" "$(echo $_base64_key | base64 -D)" > $_key
+    # when the script exits or is stopped with ctrl-C the file is 
+    # still removed.
+    trap 'rm -f -- '$_key 0 2 3 15 INT EXIT
+  fi
+
   local _jwt
   _jwt=$(jwt encode -A RS256 \
                     -e $(( $(date +%s) + $(( $_duration * 60 )) )) \
@@ -633,7 +829,10 @@ generate() {
                     -P iat=$(( $(date +%s) - 60 )) \
                     -S @$_key)
   
-  # Get installation id
+  # ;-------------------------------------
+  # ; Get installation id from GitHub.com
+  # ;-------------------------------------
+
   local _installation_id=
   local _app_token=
   if [[ $_hostname == "api.github.com" ]]
@@ -654,7 +853,7 @@ generate() {
                       -H "Authorization: Bearer "$_jwt \
                       -H "Accept: application/vnd.github.v3+json" \
                       https://$_hostname/app/installations/$_installation_id/access_tokens | \
-                      jq -r 'try .token catch "failed"')
+                      jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
     
     if [[ $_app_token == "failed" ]]
     then
@@ -662,6 +861,10 @@ generate() {
     fi
 
     echo $_app_token
+
+  # ;-------------------------------------
+  # ; Get installation id from GHES
+  # ;-------------------------------------
   else
     _installation_id=$(curl -s \
                             -H "Authorization: Bearer "$_jwt \
