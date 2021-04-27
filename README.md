@@ -23,7 +23,7 @@ Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-ba
 # Download a file, name it ghtoken then do a checksum
 wget -O ghtoken \
     https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-    echo "405e8786989729683e5e8959fe9dad75f71da4d065d038a55619463edbec1b30  ghtoken" | \
+    echo "932dff6069f36f1a2488a7622000b504037f907319df269f758e69e05bf58e03  ghtoken" | \
     shasum -c -
 ```
 
@@ -36,7 +36,7 @@ wget -O ghtoken \
 curl -o ghtoken \
      -O -L -C  - \
      https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-     echo "405e8786989729683e5e8959fe9dad75f71da4d065d038a55619463edbec1b30  ghtoken" | \
+     echo "932dff6069f36f1a2488a7622000b504037f907319df269f758e69e05bf58e03  ghtoken" | \
      shasum -c -
 ```
 

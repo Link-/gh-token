@@ -570,7 +570,7 @@ _install_jwt_cli() {
   echo "installing jwt cli"
   # First check OS.
   local _on_os=
-  local _base_dir="$( cd "$( dirname "$0" )" && pwd )"
+  local _base_dir=$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 
   if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "freebsd"* ]]; then
     _on_os="Linux"
@@ -614,8 +614,11 @@ _install_jwt_cli() {
   cat "${_base_dir}/${_checksum_name}" | shasum --check --status - || _exit_1 "Could not verify validity of the downloaded package."
   # Extract the package content
   tar -xf "${_base_dir}/${_package_name}"
-  # Add jwt to the PATH env variable
-  export PATH="$PATH:${_base_dir}/jwt"
+  # Cleanup
+  rm -f "${_base_dir}/${_package_name}"
+  rm -f "${_base_dir}/${_checksum_name}"
+  # Create symlink to the binary
+  ln -s ${_base_dir}/jwt /usr/local/bin
 }
 
 ###############################################################################
@@ -790,12 +793,6 @@ generate() {
     _exit_1 echo "-i | --app_id <id> can only be a number"
   fi
 
-  # Check if dependencies exist
-  if ! command -v jwt > /dev/null 2>&1
-  then
-    _exit_1 echo "jwt-cli is required"
-  fi
-
   # ;------------------------
   # ; Install jwt-cli
   # ;------------------------
@@ -803,6 +800,15 @@ generate() {
   if [[ ! -z "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 1 ]]
   then
     _install_jwt_cli
+  fi
+
+  # ;-----------------------------
+  # ; Check if dependencies exist
+  # ;-----------------------------
+
+  if ! _command_exists jwt
+  then
+    _exit_1 echo "jwt-cli is required"
   fi
 
   # ;------------------------
@@ -890,6 +896,12 @@ generate() {
     fi
 
     echo $_app_token
+  fi
+
+  # Cleanup
+  if [[ -e "/usr/local/bin/jwt" ]]
+  then
+    rm /usr/local/bin/jwt
   fi
 }
 
