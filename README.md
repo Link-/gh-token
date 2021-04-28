@@ -172,10 +172,14 @@ $ ghtoken generate \
 
 ### Example in a workflow
 
-1. You need to create a secret to store the applications private key securely (this can be an organization or a repository secret):
+1. You need to create a secret to store the **applications private key** securely (this can be an organization or a repository secret):
     ![Create private key secret](images/create_secret.png)
 
-1. The secret needs to be provided as an environment variable then encoded into base64 as show in the workflow example:
+1. You need to create another secret to store the **application id** security (same as the step above).
+
+1. The secrets need to be provided as an environment variable then encoded into base64 as show in the workflow example:
+
+This example is designed to run on GitHub Enterprise Server. To use the same workflow with GitHub.com update the hostname to `api.github.com` and change the API URL in the testing step.
 
 ```yaml
 name: Create access token via GitHub Apps Workflow
@@ -188,7 +192,6 @@ jobs:
     # The type of runner that the job will run on
     runs-on: [ self-hosted ]
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
     - name: "Download ghtoken"
       run: |
@@ -198,14 +201,28 @@ jobs:
              echo "48ea32970b0ac57b2f1a3b1dbbef2c99b19cb88d31e9e65108bef1ec4eafe086  ghtoken" | \
              shasum -c - && \
              chmod a+x ./ghtoken
+    # Create access token with a GitHub App ID and Key
+    # We use the private key stored as a secret and encode it into base64
+    # before passing it to ghtoken
     - name: "Create access token"
+      id: "create_token"
       run: |
-        ./ghtoken generate \
+        token=$(./ghtoken generate \
           --base64_key $(printf "%s" "$APP_PRIVATE_KEY" | base64 -w 0) \
-          --app_id 3 \
+          --app_id $APP_ID \
           --install_jwt_cli \
           --hostname "github.example.com" \
-          | jq
+          | jq -r ".token")
+        echo "::set-output name=token::$token"
       env:
+        APP_ID: ${{ secrets.APP_ID }}
         APP_PRIVATE_KEY: ${{ secrets.APP_KEY }}
+    # To test the token we will use it to fetch the list of repositories
+    # belonging to our organization
+    - name: "Fetch organization repositories"
+      run: |
+        curl -X GET \
+          -H "Authorization: token ${{ steps.create_token.outputs.token }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://github.example.com/api/v3/orgs/<ORGNAME>/repos
 ```
