@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    branches:
+    - main
+    paths:
+    - 'ghtoken'
+
+jobs:
+  Update:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      name: "Checkout repo"
+      with:
+        fetch-depth: 0
+    - name: "Calculate new SHA256 hash"
+      run: |
+        new_sha="$(shasum -a 256 ghtoken)"
+        sed -r "s/echo \"[0-9a-f]{64}  ghtoken\"/echo \"$new_sha\"/g" -i README.md
+    - name: "Commit and push updates"
+      uses: EndBug/add-and-commit@a3adef035a1381dcf888c90b847240e2ddb9e008
+      with:
+        author_name: Link-
+        author_email: bassem@interop.link
+        message: 'Updating sha256 hash value'
+        add: 'README.md'
