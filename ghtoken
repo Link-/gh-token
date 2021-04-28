@@ -887,7 +887,7 @@ generate() {
                             -H "Authorization: Bearer "$_jwt \
                             -H "Accept: application/vnd.github.v3+json" \
                             https://$_hostname/api/v3/app/installations | \
-                            jq -r ".[-1].id")
+                            jq -r 'try .[-1].id catch "failed"')
 
     if [[ $_installation_id == "failed" ]]
     then
@@ -899,7 +899,7 @@ generate() {
                       -H "Authorization: Bearer "$_jwt \
                       -H "Accept: application/vnd.github.v3+json" \
                       https://$_hostname/api/v3/app/installations/$_installation_id/access_tokens | \
-                      jq -r ".token")
+                      jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
     
     if [[ $_app_token == "failed" ]]
     then

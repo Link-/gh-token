@@ -23,7 +23,7 @@ Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-ba
 # Download a file, name it ghtoken then do a checksum
 wget -O ghtoken \
     https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-    echo "932dff6069f36f1a2488a7622000b504037f907319df269f758e69e05bf58e03  ghtoken" | \
+    echo "245e98e0e928f8317e7a2914bfaf35a9158683053f302e9bec6a565a0a3a4835  ghtoken" | \
     shasum -c -
 ```
 
@@ -36,7 +36,7 @@ wget -O ghtoken \
 curl -o ghtoken \
      -O -L -C  - \
      https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-     echo "932dff6069f36f1a2488a7622000b504037f907319df269f758e69e05bf58e03  ghtoken" | \
+     echo "245e98e0e928f8317e7a2914bfaf35a9158683053f302e9bec6a565a0a3a4835  ghtoken" | \
      shasum -c -
 ```
 
@@ -47,7 +47,7 @@ Compatible with [GitHub Enterprise Server](https://github.com/enterprise).
 ```text
 
 Usage:
-  ghtoken generate --key /tmp/crt.key --duration 10
+  ghtoken generate --key /tmp/private-key.pem --app_id 112233
 
 Options:
   -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
@@ -62,10 +62,126 @@ Description:
   installation token
 ```
 
+### Example in the Terminal
+
+#### Run `ghtoken` assuming `jwt-cli` is already installed
+
+```sh
+# Assumed starting point
+.
+├── .keys
+│   └── private-key.pem
+├── README.md
+└── ghtoken
+
+1 directory, 3 files
+
+# Run ghtoken
+$ ghtoken generate \
+    --key ./.keys/private-key.pem \
+    --app_id 1122334 \
+    | jq
+
+{
+  "token": "ghs_g7___MlQiHCYI__________7j1IY2thKXF",
+  "expires_at": "2021-04-28T15:53:44Z"
+}
+```
+
+#### Run `ghtoken` and install `jwt-cli`
+
+```sh
+# Assumed starting point
+.
+├── .keys
+│   └── private-key.pem
+├── README.md
+└── ghtoken
+
+1 directory, 3 files
+
+# Run ghtoken and add --install_jwt_cli
+$ ghtoken generate \
+    --key ./.keys/private-key.pem \
+    --app_id 1122334 \
+    --install_jwt_cli \
+    | jq
+
+{
+  "token": "ghs_8Joht_______________bLCMS___M0EPOhJ",
+  "expires_at": "2021-04-28T15:55:32Z"
+}
+
+# jwt-cli will be downloaded in the same directory
+.
+├── .keys
+│   └── private-repo-checkout.2021-04-22.private-key.pem
+├── README.md
+├── ghtoken
+└── jwt
+```
+
+#### Run `ghtoken` with GitHub Enterprise Server
+
+```sh
+# Assumed starting point
+.
+├── .keys
+│   └── private-key.pem
+├── README.md
+└── ghtoken
+
+1 directory, 3 files
+
+# Run ghtoken and specify the --hostname
+$ ghtoken generate \
+    --key ./.keys/private-key.pem \
+    --app_id 2233445 \
+    --install_jwt_cli \
+    --hostname "github.example.com" \
+    | jq
+
+{
+  "token": "v1.bb1___168d_____________1202bb8753b133919",
+  "expires_at": "2021-04-28T16:01:05Z"
+}
+```
+
 ### Example in a workflow
 
+1. You need to create a secret to store the applications private key securely (this can be an organization or a repository secret):
+    ![Create private key secret](images/create_secret.png)
+
+1. The secret needs to be provided as an environment variable then encoded into base64 as show in the workflow example:
+
 ```yaml
+name: Create access token via GitHub Apps Workflow
 
+on:
+  workflow_dispatch:
 
+jobs:
+  Test:
+    # The type of runner that the job will run on
+    runs-on: [ self-hosted ]
 
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    - name: "Download ghtoken"
+      run: |
+        curl -o ghtoken \
+             -O -L -C  - \
+             https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
+             echo "932dff6069f36f1a2488a7622000b504037f907319df269f758e69e05bf58e03  ghtoken" | \
+             shasum -c -
+    - name: "Create access token"
+      run: |
+        ./ghtoken generate \
+          --base64_key $(printf "%s" "${APP_PRIVATE_KEY}" | base64) \
+          --app_id 3 \
+          --install_jwt_cli \
+          --hostname "github.example.com" \
+          | jq
+      env:
+        APP_PRIVATE_KEY: ${{ secrets.APP_KEY }}
 ```
