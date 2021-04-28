@@ -15,6 +15,18 @@ You can use this access token to make pretty much any REST or GraphQL API call t
 
 ![ghtoken demo](./images/ghtoken.png)
 
+## Why?
+
+In order to use GitHub's [REST](https://docs.github.com/en/rest) or [GraphQL](https://docs.github.com/en/graphql) APIs you will need either a [Personal Access Token](https://docs.github.com/en/developers/apps/about-apps#personal-access-tokens) (PAT) or a [GitHub App](https://docs.github.com/en/developers/apps/about-apps#about-github-apps).
+
+**PATs are dangerous, they:**
+
+1. have a very wide scope that spans across multiple organizations
+1. never (automatically) expire. They have an indefinite lifetime (or at least until you regenerate them)
+1. cannot be revoked (they're only revoked when a new one is generated)
+
+With an access token generated with a GitHub App you don't have to worry about the concerns above. These tokens have a limited scope and lifetime. Just make sure you handle the token safely (avoid leaking). In the worst case scenario, the token will expire in 1 hour from creation time.
+
 ## Installation
 
 Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-bash/blob/main/ghtoken)
