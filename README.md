@@ -23,7 +23,7 @@ Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-ba
 # Download a file, name it ghtoken then do a checksum
 wget -O ghtoken \
     https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-    echo "245e98e0e928f8317e7a2914bfaf35a9158683053f302e9bec6a565a0a3a4835  ghtoken" | \
+    echo "48ea32970b0ac57b2f1a3b1dbbef2c99b19cb88d31e9e65108bef1ec4eafe086  ghtoken" | \
     shasum -c -
 ```
 
@@ -36,7 +36,7 @@ wget -O ghtoken \
 curl -o ghtoken \
      -O -L -C  - \
      https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-     echo "245e98e0e928f8317e7a2914bfaf35a9158683053f302e9bec6a565a0a3a4835  ghtoken" | \
+     echo "48ea32970b0ac57b2f1a3b1dbbef2c99b19cb88d31e9e65108bef1ec4eafe086  ghtoken" | \
      shasum -c -
 ```
 
@@ -121,6 +121,29 @@ $ ghtoken generate \
 └── jwt
 ```
 
+#### Run `ghtoken` and pass the key as a base64 encoded variable
+
+```sh
+# Assumed starting point
+.
+├── README.md
+└── ghtoken
+
+1 directory, 2 files
+
+# Run ghtoken and add --install_jwt_cli
+$ ghtoken generate \
+    --base64_key $(printf "%s" $APP_KEY | base64) \
+    --app_id 1122334 \
+    --install_jwt_cli \
+    | jq
+
+{
+  "token": "ghs_GxVel5cp__________DOaCv8eDs___2l94Ta",
+  "expires_at": "2021-04-28T16:30:59Z"
+}
+```
+
 #### Run `ghtoken` with GitHub Enterprise Server
 
 ```sh
@@ -172,12 +195,13 @@ jobs:
         curl -o ghtoken \
              -O -L -C  - \
              https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-             echo "245e98e0e928f8317e7a2914bfaf35a9158683053f302e9bec6a565a0a3a4835  ghtoken" | \
-             shasum -c -
+             echo "48ea32970b0ac57b2f1a3b1dbbef2c99b19cb88d31e9e65108bef1ec4eafe086  ghtoken" | \
+             shasum -c - && \
+             chmod a+x ./ghtoken
     - name: "Create access token"
       run: |
         ./ghtoken generate \
-          --base64_key $(printf "%s" "${APP_PRIVATE_KEY}" | base64) \
+          --base64_key $(printf "%s" "$APP_PRIVATE_KEY" | base64 -w 0) \
           --app_id 3 \
           --install_jwt_cli \
           --hostname "github.example.com" \
