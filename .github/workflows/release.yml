@@ -17,6 +17,7 @@ jobs:
       name: "Checkout repo"
       with:
         fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
     - name: "Calculate new SHA256 hash"
       run: |
         new_sha="$(shasum -a 256 ghtoken)"
