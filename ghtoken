@@ -271,6 +271,12 @@ _exists_but_not_writable() {
   [[ -e "$1" ]] && ! [[ -r "$1" && -w "$1" && -x "$1" ]]
 }
 
+# _get_local_directory()
+#
+_get_local_directory() {
+  cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P
+}
+
 ###############################################################################
 # _download_from()
 #
@@ -567,10 +573,9 @@ _main() {
 ###############################################################################
 
 _install_jwt_cli() {
-  echo "installing jwt cli"
   # First check OS.
   local _on_os=
-  local _base_dir=$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+  local _base_dir=$(_get_local_directory)
 
   if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "freebsd"* ]]; then
     _on_os="Linux"
@@ -617,8 +622,6 @@ _install_jwt_cli() {
   # Cleanup
   rm -f "${_base_dir}/${_package_name}"
   rm -f "${_base_dir}/${_checksum_name}"
-  # Create symlink to the binary
-  ln -s ${_base_dir}/jwt /usr/local/bin
 }
 
 ###############################################################################
@@ -730,6 +733,7 @@ generate() {
   local _app_id=
   local _duration=10
   local _install_jwt_cli_q=0
+  local _jwt_cli_path=
   local _hostname="api.github.com"
 
   for __arg in "${@:-}"
@@ -799,6 +803,8 @@ generate() {
 
   if [[ ! -z "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 1 ]]
   then
+    # Set the path for jwt to be the local directory
+    _jwt_cli_path=$(_get_local_directory)"/jwt"
     _install_jwt_cli
   fi
 
@@ -806,9 +812,13 @@ generate() {
   # ; Check if dependencies exist
   # ;-----------------------------
 
-  if ! _command_exists jwt
+  if ! _command_exists jwt && ! _command_exists ${_jwt_cli_path}
   then
     _exit_1 echo "jwt-cli is required"
+  elif _command_exists jwt && [[ ! -z "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 0 ]]
+  then
+    # Get the path for the existing jwt binaries
+    _jwt_cli_path=$(which jwt)
   fi
 
   # ;------------------------
@@ -829,7 +839,7 @@ generate() {
   fi
 
   local _jwt
-  _jwt=$(jwt encode -A RS256 \
+  _jwt=$(${_jwt_cli_path} encode -A RS256 \
                     -e $(( $(date +%s) + $(( $_duration * 60 )) )) \
                     -i $_app_id \
                     -P iat=$(( $(date +%s) - 60 )) \
@@ -897,12 +907,6 @@ generate() {
     fi
 
     echo $_app_token
-  fi
-
-  # Cleanup
-  if [[ -e "/usr/local/bin/jwt" ]]
-  then
-    rm /usr/local/bin/jwt
   fi
 }
 
