@@ -62,7 +62,7 @@ Description:
   installation token
 ```
 
-### Example in the Terminal
+### Examples in the Terminal
 
 #### Run `ghtoken` assuming `jwt-cli` is already installed
 
@@ -172,7 +172,7 @@ jobs:
         curl -o ghtoken \
              -O -L -C  - \
              https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-             echo "932dff6069f36f1a2488a7622000b504037f907319df269f758e69e05bf58e03  ghtoken" | \
+             echo "245e98e0e928f8317e7a2914bfaf35a9158683053f302e9bec6a565a0a3a4835  ghtoken" | \
              shasum -c -
     - name: "Create access token"
       run: |
