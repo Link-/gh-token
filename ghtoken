@@ -832,7 +832,7 @@ generate() {
     # Make a temporary file to contain the secret
     # this file will be deleted when the script exists, crashes or is stopped
     _key=$(printf "%s.pem" $(mktemp))
-    printf "%s" "$(echo $_base64_key | base64 -D)" > $_key
+    printf "%s" "$(echo $_base64_key | base64 -d)" > $_key
     # when the script exits or is stopped with ctrl-C the file is 
     # still removed.
     trap 'rm -f -- '$_key 0 2 3 15 INT EXIT
