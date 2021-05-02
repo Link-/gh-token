@@ -715,7 +715,7 @@ version() {
 
 describe "generate" <<HEREDOC
 Usage:
-  ${_ME} generate [-k|-b|-i|-d|-h|<options>]
+  ${_ME} generate [-k|-b|-i|-d|-h|-j|<options>]
 
 Options:
   -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
