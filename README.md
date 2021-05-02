@@ -38,7 +38,8 @@ Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-ba
 wget -O ghtoken \
     https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
     echo "6efdffe25f1f15e5855b2fe74332241d1c9dadef664a664add5759b621d5a624  ghtoken" | \
-    shasum -c -
+    shasum -c - && \
+    chmod u+x ./ghtoken
 ```
 
 ### curl
@@ -51,7 +52,8 @@ curl -o ghtoken \
      -O -L -C  - \
      https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
      echo "6efdffe25f1f15e5855b2fe74332241d1c9dadef664a664add5759b621d5a624  ghtoken" | \
-     shasum -c -
+     shasum -c - && \
+     chmod u+x ./ghtoken
 ```
 
 ## Usage
