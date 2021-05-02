@@ -724,6 +724,7 @@ Options:
   -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
   -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
   -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
+  -l | --installation_id <id> GitHub App installation id. (Optional)
 
 Description:
   Generates a JWT signed with the supplied key and fetches an 
@@ -731,11 +732,12 @@ Description:
 HEREDOC
 generate() {
   local _key=
-  local _base64_key=
   local _app_id=
   local _duration=10
-  local _install_jwt_cli_q=0
+  local _base64_key=
   local _jwt_cli_path=
+  local _installation_id=
+  local _install_jwt_cli_q=0
   local _hostname="api.github.com"
 
   for __arg in "${@:-}"
@@ -766,6 +768,11 @@ generate() {
         shift
         shift
         ;;
+      -l|--installation_id)
+        _installation_id=${2:-}
+        shift
+        shift
+        ;;
       -j|--install_jwt_cli)
         _install_jwt_cli_q=1
         shift
@@ -777,24 +784,24 @@ generate() {
     esac
   done
 
-  if [[ ! $_duration == ?(-)+([0-9]) ]]
+  if [[ ! "${_duration}" == ?(-)+([0-9]) ]]
   then
     _exit_1 echo "-d | --duration can only be a number"
   elif [[ _duration -gt 10 ]]
   then
     _exit_1 echo "-d | --duration cannot be more than 10 minutes"
   # If neither the key nor the base64_key string have been provided, error
-  elif [[ -z "$_key" && -z "$_base64_key" ]]
+  elif [[ -z "${_key}" && -z "${_base64_key}" ]]
   then
     _exit_1 echo "-k | --key <key> OR -b | --base64_key is required"
   # If the -k | --key has been provided and the file exists and is readable
-  elif [[ -n "$_key" ]] && [[ ! -e $_key || ! -r $_key ]]
+  elif [[ -n "${_key}" ]] && [[ ! -e ${_key} || ! -r ${_key} ]]
   then
     _exit_1 echo "-k | --key <key> not found or is not readable"
-  elif [[ -z "$_app_id" ]]
+  elif [[ -z "${_app_id}" ]]
   then
     _exit_1 echo "-i | --app_id <id> is required"
-  elif [[ ! "$_app_id" == ?(-)+([0-9]) ]]
+  elif [[ ! "${_app_id}" == ?(-)+([0-9]) ]]
   then
     _exit_1 echo "-i | --app_id <id> can only be a number"
   fi
@@ -829,68 +836,68 @@ generate() {
 
   # If the key was provided as a base64 encoded string we need to decode it
   # and store it in a temporary
-  if [[ -n "$_base64_key" ]]
+  if [[ -n "${_base64_key}" ]]
   then
     # Make a temporary file to contain the secret
     # this file will be deleted when the script exists, crashes or is stopped
     _key=$(printf "%s.pem" "$(mktemp)")
-    printf "%s" "$(echo "$_base64_key" | base64 -d)" > "$_key"
+    printf "%s" "$(echo "${_base64_key}" | base64 -d)" > "${_key}"
     # when the script exits or is stopped with ctrl-C the file is 
     # still removed.
     trap 'rm -f -- '"$_key" 0 2 3 15 INT EXIT
   fi
 
   local _jwt
-  _jwt=$(${_jwt_cli_path} encode -A RS256 \
+  _jwt=$("${_jwt_cli_path}" encode -A RS256 \
                     -e $(( $(date +%s) + $(( _duration * 60 )) )) \
-                    -i "$_app_id" \
+                    -i "${_app_id}" \
                     -P iat=$(( $(date +%s) - 60 )) \
-                    -S @"$_key")
+                    -S @"${_key}")
   
   local _installation_id=
   local _app_token=
   local _api_url=
 
-  if [[ $_hostname == "api.github.com" ]]
+  if [[ "${_hostname}" == "api.github.com" ]]
   then
     
     # ;-------------------------------------
     # ; Get installation id from GitHub.com
     # ;-------------------------------------
-    _api_url="https://$_hostname"
+    _api_url="https://${_hostname}"
 
   else
     # ;-------------------------------------
     # ; Get installation id from GHES
     # ;-------------------------------------
-    _api_url="https://$_hostname/api/v3"
+    _api_url="https://${_hostname}/api/v3"
     
   fi
 
   _installation_id=$(curl -s \
-                          -H "Authorization: Bearer ""$_jwt" \
+                          -H "Authorization: Bearer ""${_jwt}" \
                           -H "Accept: application/vnd.github.v3+json" \
-                          "$_api_url"/app/installations | \
+                          "${_api_url}"/app/installations | \
                           jq -r 'try .[-1].id catch "failed"')
 
-  if [[ $_installation_id == "failed" ]]
+  if [[ "${_installation_id}" == "failed" ]]
   then
     _exit_1 echo "failed to fetch installation id"
   fi
 
   _app_token=$(curl -s \
                     -X POST \
-                    -H "Authorization: Bearer ""$_jwt" \
+                    -H "Authorization: Bearer ""${_jwt}" \
                     -H "Accept: application/vnd.github.v3+json" \
-                    "$_api_url"/app/installations/"$_installation_id"/access_tokens | \
+                    "${_api_url}"/app/installations/"${_installation_id}"/access_tokens | \
                     jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
   
-  if [[ "$_app_token" == "failed" ]]
+  if [[ "${_app_token}" == "failed" ]]
   then
     _exit_1 echo "failed to create app token"
   fi
 
-  echo "$_app_token"
+  echo "${_app_token}"
 }
 
 ###############################################################################
