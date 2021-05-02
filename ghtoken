@@ -847,69 +847,50 @@ generate() {
                     -P iat=$(( $(date +%s) - 60 )) \
                     -S @"$_key")
   
-  # ;-------------------------------------
-  # ; Get installation id from GitHub.com
-  # ;-------------------------------------
-
   local _installation_id=
   local _app_token=
+  local _api_url=
+
   if [[ $_hostname == "api.github.com" ]]
   then
-    _installation_id=$(curl -s \
-                            -H "Authorization: Bearer ""$_jwt" \
-                            -H "Accept: application/vnd.github.v3+json" \
-                            https://"$_hostname"/app/installations | \
-                            jq -r 'try .[-1].id catch "failed"')
-
-    if [[ $_installation_id == "failed" ]]
-    then
-      _exit_1 echo "failed to fetch installation id"
-    fi
-
-    _app_token=$(curl -s \
-                      -X POST \
-                      -H "Authorization: Bearer ""$_jwt" \
-                      -H "Accept: application/vnd.github.v3+json" \
-                      https://"$_hostname"/app/installations/"$_installation_id"/access_tokens | \
-                      jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
     
-    if [[ "$_app_token" == "failed" ]]
-    then
-      _exit_1 echo "failed to create app token"
-    fi
-
-    echo "$_app_token"
-
-  # ;-------------------------------------
-  # ; Get installation id from GHES
-  # ;-------------------------------------
+    # ;-------------------------------------
+    # ; Get installation id from GitHub.com
+    # ;-------------------------------------
+    _api_url="https://$_hostname"
 
   else
-    _installation_id=$(curl -s \
-                            -H "Authorization: Bearer ""$_jwt" \
-                            -H "Accept: application/vnd.github.v3+json" \
-                            https://"$_hostname"/api/v3/app/installations | \
-                            jq -r 'try .[-1].id catch "failed"')
-
-    if [[ $_installation_id == "failed" ]]
-    then
-      _exit_1 echo "failed to fetch installation id"
-    fi
-
-    _app_token=$(curl -s \
-                      -X POST \
-                      -H "Authorization: Bearer ""$_jwt" \
-                      -H "Accept: application/vnd.github.v3+json" \
-                      https://"$_hostname"/api/v3/app/installations/"$_installation_id"/access_tokens | \
-                      jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
+    # ;-------------------------------------
+    # ; Get installation id from GHES
+    # ;-------------------------------------
+    _api_url="https://$_hostname/api/v3"
     
-    if [[ "$_app_token" == "failed" ]]
-    then
-      _exit_1 echo "failed to create app token"
-    fi
-
-    echo "$_app_token"
   fi
+
+  _installation_id=$(curl -s \
+                          -H "Authorization: Bearer ""$_jwt" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "$_api_url"/app/installations | \
+                          jq -r 'try .[-1].id catch "failed"')
+
+  if [[ $_installation_id == "failed" ]]
+  then
+    _exit_1 echo "failed to fetch installation id"
+  fi
+
+  _app_token=$(curl -s \
+                    -X POST \
+                    -H "Authorization: Bearer ""$_jwt" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "$_api_url"/app/installations/"$_installation_id"/access_tokens | \
+                    jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
+  
+  if [[ "$_app_token" == "failed" ]]
+  then
+    _exit_1 echo "failed to create app token"
+  fi
+
+  echo "$_app_token"
 }
 
 ###############################################################################
