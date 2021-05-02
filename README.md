@@ -216,7 +216,7 @@ jobs:
              https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
              echo "73d25de2d74fd800a08fe490372f0708abc77f541107802851a702641706b8b3  ghtoken" | \
              shasum -c - && \
-             chmod a+x ./ghtoken
+             chmod u+x ./ghtoken
     # Create access token with a GitHub App ID and Key
     # We use the private key stored as a secret and encode it into base64
     # before passing it to ghtoken
