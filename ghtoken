@@ -575,7 +575,8 @@ _main() {
 _install_jwt_cli() {
   # First check OS.
   local _on_os=
-  local _base_dir=$(_get_local_directory)
+  local _base_dir=
+  _base_dir=$(_get_local_directory)
 
   if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "freebsd"* ]]; then
     _on_os="Linux"
@@ -594,29 +595,31 @@ _install_jwt_cli() {
   # If running on Linux
   local _package_name=
   local _checksum_name=
-  local _package_version="4.0.0"
-  if [[ ! -z ${_on_os} && ${_on_os} == "Linux" ]]
+  local _package_version=
+  _package_version="4.0.0"
+
+  if [[ -n ${_on_os} && ${_on_os} == "Linux" ]]
   then
     _package_name="jwt-linux.tar.gz"
     _checksum_name="jwt-linux.sha256"
-  elif [[ ! -z ${_on_os} && ${_on_os} == "macOS" ]]
+  elif [[ -n ${_on_os} && ${_on_os} == "macOS" ]]
   then
     _package_name="jwt-macOS.tar.gz"
     _checksum_name="jwt-macOS.sha256"
   fi
 
   # Download the needed binaries
-  if ! _download_from "https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/${_package_name}" "${_base_dir}/${_package_name}"
+  if ! _download_from "https://github.com/mike-engel/jwt-cli/releases/download/${_package_version}/${_package_name}" "${_base_dir}/${_package_name}"
   then
-    _exit_1 echo "Could not download jwt-cli from https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/${_package_name}"
+    _exit_1 echo "Could not download jwt-cli from https://github.com/mike-engel/jwt-cli/releases/download/${_package_version}/${_package_name}"
   fi
   # Download the checksum
-  if ! _download_from "https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/${_checksum_name}" "${_base_dir}/${_checksum_name}"
+  if ! _download_from "https://github.com/mike-engel/jwt-cli/releases/download/${_package_version}/${_checksum_name}" "${_base_dir}/${_checksum_name}"
   then
-    _exit_1 echo "Could not download jwt-cli checksum from https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/${_checksum_name}"
+    _exit_1 echo "Could not download jwt-cli checksum from https://github.com/mike-engel/jwt-cli/releases/download/${_package_version}/${_checksum_name}"
   fi
   # Verify package integrity
-  cat "${_base_dir}/${_checksum_name}" | shasum --check --status - || _exit_1 "Could not verify validity of the downloaded package."
+  shasum --check --status "${_base_dir}/${_checksum_name}" || _exit_1 "Could not verify validity of the downloaded package."
   # Extract the package content
   tar -xf "${_base_dir}/${_package_name}"
   # Cleanup
@@ -717,7 +720,7 @@ Usage:
 Options:
   -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
   -b | --base64_key <key> Base64 encoded PEM certificate and key. (Optional)
-  -i | --app_id <id>  GitHub App Id
+  -i | --app_id <id>  GitHub App Id. (Required)
   -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
   -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
   -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
@@ -727,7 +730,6 @@ Description:
   installation token
 HEREDOC
 generate() {
-  local _arguments=()
   local _key=
   local _base64_key=
   local _app_id=
@@ -786,7 +788,7 @@ generate() {
   then
     _exit_1 echo "-k | --key <key> OR -b | --base64_key is required"
   # If the -k | --key has been provided and the file exists and is readable
-  elif [[ ! -z "$_key" ]] && [[ ! -e $_key || ! -r $_key ]]
+  elif [[ -n "$_key" ]] && [[ ! -e $_key || ! -r $_key ]]
   then
     _exit_1 echo "-k | --key <key> not found or is not readable"
   elif [[ -z "$_app_id" ]]
@@ -801,7 +803,7 @@ generate() {
   # ; Install jwt-cli
   # ;------------------------
 
-  if [[ ! -z "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 1 ]]
+  if [[ -n "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 1 ]]
   then
     # Set the path for jwt to be the local directory
     _jwt_cli_path=$(_get_local_directory)"/jwt"
@@ -812,10 +814,10 @@ generate() {
   # ; Check if dependencies exist
   # ;-----------------------------
 
-  if ! _command_exists jwt && ! _command_exists ${_jwt_cli_path}
+  if ! _command_exists jwt && ! _command_exists "${_jwt_cli_path}"
   then
     _exit_1 echo "jwt-cli is required"
-  elif _command_exists jwt && [[ ! -z "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 0 ]]
+  elif _command_exists jwt && [[ -n "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 0 ]]
   then
     # Get the path for the existing jwt binaries
     _jwt_cli_path=$(which jwt)
@@ -827,23 +829,23 @@ generate() {
 
   # If the key was provided as a base64 encoded string we need to decode it
   # and store it in a temporary
-  if [[ ! -z "$_base64_key" ]]
+  if [[ -n "$_base64_key" ]]
   then
     # Make a temporary file to contain the secret
     # this file will be deleted when the script exists, crashes or is stopped
-    _key=$(printf "%s.pem" $(mktemp))
-    printf "%s" "$(echo $_base64_key | base64 -d)" > $_key
+    _key=$(printf "%s.pem" "$(mktemp)")
+    printf "%s" "$(echo "$_base64_key" | base64 -d)" > "$_key"
     # when the script exits or is stopped with ctrl-C the file is 
     # still removed.
-    trap 'rm -f -- '$_key 0 2 3 15 INT EXIT
+    trap 'rm -f -- '"$_key" 0 2 3 15 INT EXIT
   fi
 
   local _jwt
   _jwt=$(${_jwt_cli_path} encode -A RS256 \
-                    -e $(( $(date +%s) + $(( $_duration * 60 )) )) \
-                    -i $_app_id \
+                    -e $(( $(date +%s) + $(( _duration * 60 )) )) \
+                    -i "$_app_id" \
                     -P iat=$(( $(date +%s) - 60 )) \
-                    -S @$_key)
+                    -S @"$_key")
   
   # ;-------------------------------------
   # ; Get installation id from GitHub.com
@@ -854,9 +856,9 @@ generate() {
   if [[ $_hostname == "api.github.com" ]]
   then
     _installation_id=$(curl -s \
-                            -H "Authorization: Bearer "$_jwt \
+                            -H "Authorization: Bearer ""$_jwt" \
                             -H "Accept: application/vnd.github.v3+json" \
-                            https://$_hostname/app/installations | \
+                            https://"$_hostname"/app/installations | \
                             jq -r 'try .[-1].id catch "failed"')
 
     if [[ $_installation_id == "failed" ]]
@@ -866,17 +868,17 @@ generate() {
 
     _app_token=$(curl -s \
                       -X POST \
-                      -H "Authorization: Bearer "$_jwt \
+                      -H "Authorization: Bearer ""$_jwt" \
                       -H "Accept: application/vnd.github.v3+json" \
-                      https://$_hostname/app/installations/$_installation_id/access_tokens | \
+                      https://"$_hostname"/app/installations/"$_installation_id"/access_tokens | \
                       jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
     
-    if [[ $_app_token == "failed" ]]
+    if [[ "$_app_token" == "failed" ]]
     then
       _exit_1 echo "failed to create app token"
     fi
 
-    echo $_app_token
+    echo "$_app_token"
 
   # ;-------------------------------------
   # ; Get installation id from GHES
@@ -884,9 +886,9 @@ generate() {
 
   else
     _installation_id=$(curl -s \
-                            -H "Authorization: Bearer "$_jwt \
+                            -H "Authorization: Bearer ""$_jwt" \
                             -H "Accept: application/vnd.github.v3+json" \
-                            https://$_hostname/api/v3/app/installations | \
+                            https://"$_hostname"/api/v3/app/installations | \
                             jq -r 'try .[-1].id catch "failed"')
 
     if [[ $_installation_id == "failed" ]]
@@ -896,17 +898,17 @@ generate() {
 
     _app_token=$(curl -s \
                       -X POST \
-                      -H "Authorization: Bearer "$_jwt \
+                      -H "Authorization: Bearer ""$_jwt" \
                       -H "Accept: application/vnd.github.v3+json" \
-                      https://$_hostname/api/v3/app/installations/$_installation_id/access_tokens | \
+                      https://"$_hostname"/api/v3/app/installations/"$_installation_id"/access_tokens | \
                       jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
     
-    if [[ $_app_token == "failed" ]]
+    if [[ "$_app_token" == "failed" ]]
     then
       _exit_1 echo "failed to create app token"
     fi
 
-    echo $_app_token
+    echo "$_app_token"
   fi
 }
 

@@ -66,7 +66,7 @@ Usage:
 Options:
   -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
   -b | --base64_key <key> Base64 encoded PEM certificate and key. (Optional)
-  -i | --app_id <id>  GitHub App Id
+  -i | --app_id <id>  GitHub App Id. (Required)
   -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
   -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
   -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
