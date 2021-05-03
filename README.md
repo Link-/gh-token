@@ -242,3 +242,17 @@ jobs:
           -H "Accept: application/vnd.github.v3+json" \
           https://github.example.com/api/v3/orgs/<ORGNAME>/repos
 ```
+
+## Similar projects
+
+_These are not endorsements, just a listing of similar art work_
+
+### CLI
+
+- [gha-token](https://github.com/slawekzachcial/gha-token) in Go
+
+### Actions
+
+- [workflow-application-token-action](https://github.com/peter-murray/workflow-application-token-action)
+- [action-github-app-token](https://github.com/getsentry/action-github-app-token)
+- [github-app-token-generator](https://github.com/navikt/github-app-token-generator)
