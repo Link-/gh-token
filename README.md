@@ -72,9 +72,10 @@ Options:
   -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
   -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
   -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
+  -l | --installation_id <id> GitHub App installation id. (Default = latest id)
 
 Description:
-  Generates a JWT signed with the supplied key and fetches an
+  Generates a JWT signed with the supplied key and fetches an 
   installation token
 ```
 
@@ -176,6 +177,7 @@ $ ghtoken generate \
 $ ghtoken generate \
     --key ./.keys/private-key.pem \
     --app_id 2233445 \
+    --installation_id 5 \
     --install_jwt_cli \
     --hostname "github.example.com" \
     | jq

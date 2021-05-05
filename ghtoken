@@ -715,7 +715,7 @@ version() {
 
 describe "generate" <<HEREDOC
 Usage:
-  ${_ME} generate [-k|-b|-i|-d|-h|-j|<options>]
+  ${_ME} generate [-k|-b|-i|-d|-h|-j|-l|<options>]
 
 Options:
   -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
@@ -724,7 +724,7 @@ Options:
   -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
   -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
   -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
-  -l | --installation_id <id> GitHub App installation id. (Optional)
+  -l | --installation_id <id> GitHub App installation id. (Default = latest id)
 
 Description:
   Generates a JWT signed with the supplied key and fetches an 
@@ -804,6 +804,9 @@ generate() {
   elif [[ ! "${_app_id}" == ?(-)+([0-9]) ]]
   then
     _exit_1 echo "-i | --app_id <id> can only be a number"
+  elif [[ -n "${_installation_id}" && ! "${_installation_id}" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-l | --installation_id <id> can only be a number"
   fi
 
   # ;------------------------
@@ -854,7 +857,6 @@ generate() {
                     -P iat=$(( $(date +%s) - 60 )) \
                     -S @"${_key}")
   
-  local _installation_id=
   local _app_token=
   local _api_url=
 
@@ -874,15 +876,19 @@ generate() {
     
   fi
 
-  _installation_id=$(curl -s \
-                          -H "Authorization: Bearer ""${_jwt}" \
-                          -H "Accept: application/vnd.github.v3+json" \
-                          "${_api_url}"/app/installations | \
-                          jq -r 'try .[-1].id catch "failed"')
-
-  if [[ "${_installation_id}" == "failed" ]]
+  # Fetch the latest installation_id only if it wasn't supplied
+  if [[ -z "${_installation_id}" ]]
   then
-    _exit_1 echo "failed to fetch installation id"
+    _installation_id=$(curl -s \
+                            -H "Authorization: Bearer ""${_jwt}" \
+                            -H "Accept: application/vnd.github.v3+json" \
+                            "${_api_url}"/app/installations | \
+                            jq -r 'try .[-1].id catch "failed"')
+
+    if [[ "${_installation_id}" == "failed" ]]
+    then
+      _exit_1 echo "failed to fetch installation id"
+    fi
   fi
 
   _app_token=$(curl -s \
