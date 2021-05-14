@@ -56,6 +56,10 @@ curl -o ghtoken \
      chmod u+x ./ghtoken
 ```
 
+### Creating a GitHub App
+
+Follow [these steps](https://docs.github.com/en/developers/apps/creating-a-github-app)
+
 ## Usage
 
 Compatible with [GitHub Enterprise Server](https://github.com/enterprise).
