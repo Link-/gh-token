@@ -711,6 +711,171 @@ version() {
   printf "%s\\n" "${_VERSION}"
 }
 
+# installations ###############################################################
+
+describe "installations" <<HEREDOC
+Usage:
+  ${_ME} installations [-k|-b|-i|-d|-h|-j|-l|<options>]
+
+Options:
+  -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
+  -b | --base64_key <key> Base64 encoded PEM certificate and key. (Optional)
+  -i | --app_id <id>  GitHub App Id. (Required)
+  -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
+  -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
+  -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
+
+Description:
+  Generates a JWT signed with the supplied key and fetches the list of installations
+HEREDOC
+installations() {
+  local _key=
+  local _app_id=
+  local _duration=10
+  local _base64_key=
+  local _jwt_cli_path=
+  local _install_jwt_cli_q=0
+  local _hostname="api.github.com"
+
+  for __arg in "${@:-}"
+  do
+    case ${__arg} in
+      -k|--key)
+        _key=${2:-}
+        shift
+        shift
+        ;;
+      -b|--base64_key)
+        _base64_key=${2:-}
+        shift
+        shift
+        ;;
+      -d|--duration)
+        _duration=${2:-}
+        shift
+        shift
+        ;;
+      -h|--hostname)
+        _hostname=${2:-}
+        shift
+        shift
+        ;;
+      -i|--app_id)
+        _app_id=${2:-}
+        shift
+        shift
+        ;;
+      -j|--install_jwt_cli)
+        _install_jwt_cli_q=1
+        shift
+        ;;
+      -*)
+        _exit_1 printf "Unexpected option: %s\\n" "${__arg}"
+        ;;
+      *)
+    esac
+  done
+
+  if [[ ! "${_duration}" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-d | --duration can only be a number"
+  elif [[ _duration -gt 10 ]]
+  then
+    _exit_1 echo "-d | --duration cannot be more than 10 minutes"
+  # If neither the key nor the base64_key string have been provided, error
+  elif [[ -z "${_key}" && -z "${_base64_key}" ]]
+  then
+    _exit_1 echo "-k | --key <key> OR -b | --base64_key is required"
+  # If the -k | --key has been provided and the file exists and is readable
+  elif [[ -n "${_key}" ]] && [[ ! -e ${_key} || ! -r ${_key} ]]
+  then
+    _exit_1 echo "-k | --key <key> not found or is not readable"
+  elif [[ -z "${_app_id}" ]]
+  then
+    _exit_1 echo "-i | --app_id <id> is required"
+  elif [[ ! "${_app_id}" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-i | --app_id <id> can only be a number"
+  fi
+
+  # ;------------------------
+  # ; Install jwt-cli
+  # ;------------------------
+
+  if [[ -n "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 1 ]]
+  then
+    # Set the path for jwt to be the local directory
+    _jwt_cli_path=$(_get_local_directory)"/jwt"
+    _install_jwt_cli
+  fi
+
+  # ;-----------------------------
+  # ; Check if dependencies exist
+  # ;-----------------------------
+
+  if ! _command_exists jwt && ! _command_exists "${_jwt_cli_path}"
+  then
+    _exit_1 echo "jwt-cli is required"
+  elif _command_exists jwt && [[ -n "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 0 ]]
+  then
+    # Get the path for the existing jwt binaries
+    _jwt_cli_path=$(which jwt)
+  fi
+
+  # ;------------------------
+  # ; Generate the JWT
+  # ;------------------------
+
+  # If the key was provided as a base64 encoded string we need to decode it
+  # and store it in a temporary
+  if [[ -n "${_base64_key}" ]]
+  then
+    # Make a temporary file to contain the secret
+    # this file will be deleted when the script exists, crashes or is stopped
+    _key=$(printf "%s.pem" "$(mktemp)")
+    printf "%s" "$(echo "${_base64_key}" | base64 -d)" > "${_key}"
+    # when the script exits or is stopped with ctrl-C the file is 
+    # still removed.
+    trap 'rm -f -- '"$_key" 0 2 3 15 INT EXIT
+  fi
+
+  local _jwt
+  _jwt=$("${_jwt_cli_path}" encode -A RS256 \
+                    -e $(( $(date +%s) + $(( _duration * 60 )) )) \
+                    -i "${_app_id}" \
+                    -P iat=$(( $(date +%s) - 60 )) \
+                    -S @"${_key}")
+  
+  local _app_token=
+  local _api_url=
+
+  if [[ "${_hostname}" == "api.github.com" ]]
+  then
+    
+    # ;-------------------------------------
+    # ; Get installation id from GitHub.com
+    # ;-------------------------------------
+    _api_url="https://${_hostname}"
+
+  else
+    # ;-------------------------------------
+    # ; Get installation id from GHES
+    # ;-------------------------------------
+    _api_url="https://${_hostname}/api/v3"
+    
+  fi
+
+  # Fetch the installation_ids
+  local _installations
+  _installations=$(curl -s \
+                          -H "Authorization: Bearer ""${_jwt}" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "${_api_url}"/app/installations | \
+                          jq)
+  
+  echo "${_installations}"
+}
+
 # generate ####################################################################
 
 describe "generate" <<HEREDOC
@@ -883,7 +1048,7 @@ generate() {
                             -H "Authorization: Bearer ""${_jwt}" \
                             -H "Accept: application/vnd.github.v3+json" \
                             "${_api_url}"/app/installations | \
-                            jq -r 'try .[-1].id catch "failed"')
+                            jq -r 'try .[0].id catch "failed"')
 
     if [[ "${_installation_id}" == "failed" ]]
     then
@@ -891,6 +1056,7 @@ generate() {
     fi
   fi
 
+  # Create the installation access token
   _app_token=$(curl -s \
                     -X POST \
                     -H "Authorization: Bearer ""${_jwt}" \
