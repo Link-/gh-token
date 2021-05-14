@@ -711,6 +711,85 @@ version() {
   printf "%s\\n" "${_VERSION}"
 }
 
+# revoke ######################################################################
+
+describe "revoke" <<HEREDOC
+Usage:
+  ${_ME} revoke [-t|-h|<options>]
+
+Options:
+  -t | --token <token>  Access token to revoke. (Required)
+  -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
+
+Description:
+  Revoke the provided access token
+HEREDOC
+revoke() {
+  local _token=
+  local _hostname="api.github.com"
+
+  for __arg in "${@:-}"
+  do
+    case ${__arg} in
+      -t|--token)
+        _token=${2:-}
+        shift
+        shift
+        ;;
+      -h|--hostname)
+        _hostname=${2:-}
+        shift
+        shift
+        ;;
+      -*)
+        _exit_1 printf "Unexpected option: %s\\n" "${__arg}"
+        ;;
+      *)
+    esac
+  done
+
+  if [[ -z "${_token}" ]]
+  then
+    _exit_1 echo "-t | --token <token> is required"
+  fi
+
+  if [[ "${_hostname}" == "api.github.com" ]]
+  then
+    
+    # ;-------------------------------------
+    # ; Get installation id from GitHub.com
+    # ;-------------------------------------
+    _api_url="https://${_hostname}"
+
+  else
+    # ;-------------------------------------
+    # ; Get installation id from GHES
+    # ;-------------------------------------
+    _api_url="https://${_hostname}/api/v3"
+    
+  fi
+
+  # Revoke the token
+  local _response=
+  _response=$(curl --write-out '%{http_code}' \
+                   --output /dev/null \
+                   --silent \
+                   -X DELETE \
+                   -H "Authorization: Token ""${_token}" \
+                   -H "Accept: application/vnd.github.v3+json" \
+                   "${_api_url}"/installation/token | \
+                   jq)
+  
+  if [[ "${_response}" == 204 ]]
+  then
+    echo ${_response}": Token revoked successfully"
+  else
+    echo ${_response}": Failed to revoke token. Maybe it expired already?"
+  fi
+}
+
+
+
 # installations ###############################################################
 
 describe "installations" <<HEREDOC
@@ -755,7 +834,7 @@ installations() {
         shift
         shift
         ;;
-      -h|--hostname)
+      -o|--hostname)
         _hostname=${2:-}
         shift
         shift
@@ -923,7 +1002,7 @@ generate() {
         shift
         shift
         ;;
-      -h|--hostname)
+      -o|--hostname)
         _hostname=${2:-}
         shift
         shift
