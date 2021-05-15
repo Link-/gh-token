@@ -82,7 +82,7 @@ Options:
   -d <minutes>, --duration <minutes>    The expiration duration of the JWT in minutes. [default: 10]
   -o <hostname>, --hostname <hostname>  The API URL of GitHub. [default: api.github.com]
   -j, --install_jwt_cli                 Install jwt-cli (dependency) on the current system. [optional]
-  -l <id>, --installation_id <id>       GitHub App installation id. [default = latest id]
+  -l <id>, --installation_id <id>       GitHub App installation id. [default: latest id]
   -t <token>, --token <token>           Access token to revoke. [required]
 ```
 
@@ -275,6 +275,17 @@ $ ghtoken installations \
   ```
 
 </details>
+
+#### Revoke an installation access token
+
+```sh
+# Run ghtoken with the revoke command
+$ ghtoken revoke \
+    --token "v1.bb1___168d_____________1202bb8753b133919"
+    --hostname "github.example.com"
+
+204: Token revoked successfully
+```
 
 ### Example in a workflow
 
