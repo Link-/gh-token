@@ -37,7 +37,7 @@ Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-ba
 # Download a file, name it ghtoken then do a checksum
 wget -O ghtoken \
     https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-    echo "5ee00974ae8d97ec5cfbcd7cb58777787b0107e2e8b84d46fe30a86160d93a2a  ghtoken" | \
+    echo "cbdfab2fdf843414a8fb215c792b813051c19d26657189b60c449fc6bbe008bb  ghtoken" | \
     shasum -c - && \
     chmod u+x ./ghtoken
 ```
@@ -51,7 +51,7 @@ wget -O ghtoken \
 curl -o ghtoken \
      -O -L -C  - \
      https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-     echo "5ee00974ae8d97ec5cfbcd7cb58777787b0107e2e8b84d46fe30a86160d93a2a  ghtoken" | \
+     echo "cbdfab2fdf843414a8fb215c792b813051c19d26657189b60c449fc6bbe008bb  ghtoken" | \
      shasum -c - && \
      chmod u+x ./ghtoken
 ```
@@ -315,7 +315,7 @@ jobs:
         curl -o ghtoken \
              -O -L -C  - \
              https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
-             echo "5ee00974ae8d97ec5cfbcd7cb58777787b0107e2e8b84d46fe30a86160d93a2a  ghtoken" | \
+             echo "cbdfab2fdf843414a8fb215c792b813051c19d26657189b60c449fc6bbe008bb  ghtoken" | \
              shasum -c - && \
              chmod u+x ./ghtoken
     # Create access token with a GitHub App ID and Key
