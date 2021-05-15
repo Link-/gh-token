@@ -782,9 +782,9 @@ revoke() {
   
   if [[ "${_response}" == 204 ]]
   then
-    echo ${_response}": Token revoked successfully"
+    echo "${_response}: Token revoked successfully"
   else
-    echo ${_response}": Failed to revoke token. Maybe it expired already?"
+    echo "${_response}: Failed to revoke token. Maybe it expired already?"
   fi
 }
 
