@@ -67,20 +67,23 @@ Compatible with [GitHub Enterprise Server](https://github.com/enterprise).
 ```text
 
 Usage:
-  ghtoken generate --key /tmp/private-key.pem --app_id 112233
+  ghtoken generate (--key <key> | --base64_key <key>) --app_id <id> [--duration <minutes>] [--installation_id <id>] [--hostname <hostname>] [--install_jwt_cli]
+  ghtoken installations (--key <key> | -base64_key <key>) --app_id <id> [--duration <minutes>] [--hostname <hostname>] [--install_jwt_cli]
+  ghtoken revoke --token <token> [--hostname <hostname>]
+  ghtoken -h | --help
+  ghtoken --version
 
 Options:
-  -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
-  -b | --base64_key <key> Base64 encoded PEM certificate and key. (Optional)
-  -i | --app_id <id>  GitHub App Id. (Required)
-  -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
-  -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
-  -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
-  -l | --installation_id <id> GitHub App installation id. (Default = latest id)
-
-Description:
-  Generates a JWT signed with the supplied key and fetches an 
-  installation token
+  -h --help  Display this help information.
+  --version  Display version information.
+  -k <key>, --key <key>                 Path to a PEM-encoded certificate and key. [required]
+  -b <key>, --base64_key <key>          Base64 encoded PEM certificate and key. [optional]
+  -i <id>, --app_id <id>                GitHub App Id. [required]
+  -d <minutes>, --duration <minutes>    The expiration duration of the JWT in minutes. [default: 10]
+  -o <hostname>, --hostname <hostname>  The API URL of GitHub. [default: api.github.com]
+  -j, --install_jwt_cli                 Install jwt-cli (dependency) on the current system. [optional]
+  -l <id>, --installation_id <id>       GitHub App installation id. [default = latest id]
+  -t <token>, --token <token>           Access token to revoke. [required]
 ```
 
 ### Examples in the Terminal
@@ -191,6 +194,87 @@ $ ghtoken generate \
   "expires_at": "2021-04-28T16:01:05Z"
 }
 ```
+
+#### Fetch list of installations for an app
+
+```sh
+# Assumed starting point
+.
+├── .keys
+│   └── private-key.pem
+├── README.md
+└── ghtoken
+
+1 directory, 3 files
+
+# Run ghtoken and specify the --hostname
+$ ghtoken installations \
+    --key ./.keys/private-key.pem \
+    --app_id 2233445 \
+    --install_jwt_cli \
+    --hostname "github.example.com" \
+    | jq
+```
+
+<details>
+  <summary>Response</summary>
+
+  ```json
+  [
+    {
+      "id": 1,
+      "account": {
+        "login": "octocat",
+        "id": 1,
+        "node_id": "MDQ6VXNlcjE=",
+        "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/octocat",
+        "html_url": "https://github.com/octocat",
+        "followers_url": "https://api.github.com/users/octocat/followers",
+        "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+        "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+        "organizations_url": "https://api.github.com/users/octocat/orgs",
+        "repos_url": "https://api.github.com/users/octocat/repos",
+        "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/octocat/received_events",
+        "type": "User",
+        "site_admin": false
+      },
+      "access_tokens_url": "https://api.github.com/installations/1/access_tokens",
+      "repositories_url": "https://api.github.com/installation/repositories",
+      "html_url": "https://github.com/organizations/github/settings/installations/1",
+      "app_id": 1,
+      "target_id": 1,
+      "target_type": "Organization",
+      "permissions": {
+        "checks": "write",
+        "metadata": "read",
+        "contents": "read"
+      },
+      "events": [
+        "push",
+        "pull_request"
+      ],
+      "single_file_name": "config.yaml",
+      "has_multiple_single_files": true,
+      "single_file_paths": [
+        "config.yml",
+        ".github/issue_TEMPLATE.md"
+      ],
+      "repository_selection": "selected",
+      "created_at": "2017-07-08T16:18:44-04:00",
+      "updated_at": "2017-07-08T16:18:44-04:00",
+      "app_slug": "github-actions",
+      "suspended_at": null,
+      "suspended_by": null
+    }
+  ]
+  ```
+
+</details>
 
 ### Example in a workflow
 
