@@ -55,7 +55,7 @@ _ME="$(basename "${0}")"
 #
 # Manually set this to to current version of the program. Adhere to the
 # semantic versioning specification: http://semver.org
-_VERSION="0.1.0-alpha"
+_VERSION="0.2.0-alpha"
 
 # $DEFAULT_SUBCOMMAND
 #
@@ -718,8 +718,8 @@ Usage:
   ${_ME} revoke [-t|-h|<options>]
 
 Options:
-  -t | --token <token>  Access token to revoke. (Required)
-  -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
+  -o <hostname>, --hostname <hostname>  The API URL of GitHub. [default: api.github.com]
+  -t <token>, --token <token>           Access token to revoke. [required]
 
 Description:
   Revoke the provided access token
@@ -736,7 +736,7 @@ revoke() {
         shift
         shift
         ;;
-      -h|--hostname)
+      -o|--hostname)
         _hostname=${2:-}
         shift
         shift
@@ -794,15 +794,15 @@ revoke() {
 
 describe "installations" <<HEREDOC
 Usage:
-  ${_ME} installations [-k|-b|-i|-d|-h|-j|-l|<options>]
+  ${_ME} ghtoken installations (--key <key> | -base64_key <key>) --app_id <id> [--duration <minutes>] [--hostname <hostname>] [--install_jwt_cli]
 
 Options:
-  -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
-  -b | --base64_key <key> Base64 encoded PEM certificate and key. (Optional)
-  -i | --app_id <id>  GitHub App Id. (Required)
-  -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
-  -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
-  -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
+  -k <key>, --key <key>                 Path to a PEM-encoded certificate and key. [required]
+  -b <key>, --base64_key <key>          Base64 encoded PEM certificate and key. [optional]
+  -i <id>, --app_id <id>                GitHub App Id. [required]
+  -d <minutes>, --duration <minutes>    The expiration duration of the JWT in minutes. [default: 10]
+  -o <hostname>, --hostname <hostname>  The API URL of GitHub. [default: api.github.com]
+  -j, --install_jwt_cli                 Install jwt-cli (dependency) on the current system. [optional]
 
 Description:
   Generates a JWT signed with the supplied key and fetches the list of installations
@@ -959,16 +959,16 @@ installations() {
 
 describe "generate" <<HEREDOC
 Usage:
-  ${_ME} generate [-k|-b|-i|-d|-h|-j|-l|<options>]
+  ${_ME} generate (--key <key> | --base64_key <key>) --app_id <id> [--duration <minutes>] [--installation_id <id>] [--hostname <hostname>] [--install_jwt_cli]
 
 Options:
-  -k | --key <key>  Path to a PEM-encoded certificate and key. (Required)
-  -b | --base64_key <key> Base64 encoded PEM certificate and key. (Optional)
-  -i | --app_id <id>  GitHub App Id. (Required)
-  -d | --duration <duration>  The duration of the token in minutes. (Default = 10)
-  -h | --hostname <hostname>  The API URL of GitHub. (Default = api.github.com)
-  -j | --install_jwt_cli  Install jwt-cli (dependency) on the current system. (Optional)
-  -l | --installation_id <id> GitHub App installation id. (Default = latest id)
+  -k <key>, --key <key>                 Path to a PEM-encoded certificate and key. [required]
+  -b <key>, --base64_key <key>          Base64 encoded PEM certificate and key. [optional]
+  -i <id>, --app_id <id>                GitHub App Id. [required]
+  -d <minutes>, --duration <minutes>    The expiration duration of the JWT in minutes. [default: 10]
+  -o <hostname>, --hostname <hostname>  The API URL of GitHub. [default: api.github.com]
+  -j, --install_jwt_cli                 Install jwt-cli (dependency) on the current system. [optional]
+  -l <id>, --installation_id <id>       GitHub App installation id. [default = latest id]
 
 Description:
   Generates a JWT signed with the supplied key and fetches an 
