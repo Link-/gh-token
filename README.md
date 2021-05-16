@@ -17,6 +17,13 @@ You can use this access token to make pretty much any REST or GraphQL API call t
 
 ![ghtoken demo](./images/ghtoken.png)
 
+<details>
+  <summary>Expand for Demo</summary>
+
+  ![Demo](./images/demo.gif)
+
+</details>
+
 ## Why?
 
 In order to use GitHub's [REST](https://docs.github.com/en/rest) or [GraphQL](https://docs.github.com/en/graphql) APIs you will need either a [Personal Access Token](https://docs.github.com/en/developers/apps/about-apps#personal-access-tokens) (PAT) or a [GitHub App](https://docs.github.com/en/developers/apps/about-apps#about-github-apps).
