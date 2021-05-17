@@ -302,6 +302,32 @@ $ ghtoken revoke \
 204: Token revoked successfully
 ```
 
+#### Integrate with [GitHub's CLI](https://github.com/cli/cli)
+
+You can use ghtoken alongside [gh cli](https://github.com/cli/cli) by setting these aliases:
+
+```sh
+# Set a token generation alias. This will always generate a token from
+# the app ID and key supplied.
+$ gh alias set token -s 'ghtoken generate --key /tmp/private-key.pem --app_id 112233'
+
+# Usage
+$ gh token
+
+{
+  "token": "ghs_1gCKrYvkh3_______7JZFlZw______w1FE",
+  "expires_at": "2021-05-15T22:34:10Z"
+}
+
+# You can also set an alias to revoke tokens
+$ gh alias set revokeToken -s 'ghtoken revoke --token "$1"'
+
+# Usage
+$ gh revokeToken "ghs_1gCKrYvkh3_______7JZFlZw______w1FE"
+
+204: Token revoked successfully
+```
+
 ### Example in a workflow
 
 1. You need to create a secret to store the **applications private key** securely (this can be an organization or a repository secret):
