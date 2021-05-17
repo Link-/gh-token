@@ -353,6 +353,29 @@ jobs:
           https://github.example.com/api/v3/orgs/<ORGNAME>/repos
 ```
 
+## Troubleshoot
+
+### I'm getting: `Something went awry creating the jwt` with `ghtoken generate`
+
+Make sure your `pem` file has the extension `.pem`. This is necessary for `jwt-cli` to be able to determine the type of key it's trying to parse.
+
+### I get `null` values for `token` and `expiration date`
+
+If you see this response:
+
+```sh
+{
+  "token": null,
+  "expires_at": null
+}
+```
+
+This is an indication that the script was not able to fetch an `installation id` and that the GitHub App has not been `installed` for an Organization or User.
+
+### I get a weird syntax error
+
+Make sure you're running `bash 5.x+`. If you're running MacOS the version of `bash` installed is `3.2` which is not compatible with this tool.
+
 ## Similar projects
 
 _These are not endorsements, just a listing of similar art work_
