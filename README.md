@@ -38,7 +38,7 @@ With an access token generated with a GitHub App you don't have to worry about t
 
 ## Installation
 
-### Pre-requisites
+### Prerequisites
 
 - `Bash 5.x+`
 - `jq`
@@ -380,7 +380,12 @@ This is an indication that the script was not able to fetch an `installation id`
 
 ### I get a weird syntax error
 
-Make sure you're running `bash 5.x+`. If you're running MacOS the version of `bash` installed is `3.2` which is not compatible with this tool.
+Make sure you're running `bash 5.x+`. If you're running MacOS, the version of `bash` installed is `3.2` which is not compatible with this tool.
+
+```sh
+# Upgrade bash and that should resolve your problem
+brew upgrade bash
+```
 
 ## Similar projects
 
