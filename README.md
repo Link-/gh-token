@@ -38,6 +38,12 @@ With an access token generated with a GitHub App you don't have to worry about t
 
 ## Installation
 
+### Pre-requisites
+
+- `Bash 5.x+`
+- `jq`
+- `shasum`
+
 Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-bash/blob/main/ghtoken)
 
 ### wget
