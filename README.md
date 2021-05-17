@@ -333,6 +333,10 @@ $ gh revokeToken "ghs_1gCKrYvkh3_______7JZFlZw______w1FE"
 
 ### Example in a workflow
 
+<details>
+
+  <summary>Expand to show instructions</summary>
+
 1. You need to create a secret to store the **applications private key** securely (this can be an organization or a repository secret):
     ![Create private key secret](images/create_secret.png)
 
@@ -387,6 +391,8 @@ jobs:
           -H "Accept: application/vnd.github.v3+json" \
           https://github.example.com/api/v3/orgs/<ORGNAME>/repos
 ```
+
+</details>
 
 ## Troubleshoot
 
