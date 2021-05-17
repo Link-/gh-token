@@ -307,6 +307,9 @@ $ ghtoken revoke \
 You can use ghtoken alongside [gh cli](https://github.com/cli/cli) by setting these aliases:
 
 ```sh
+# Add ghtoken to a folder included in your PATH environment variable
+ln -s <PATH TO THE SCRIPT>/ghtoken /usr/local/bin/ghtoken
+
 # Set a token generation alias. This will always generate a token from
 # the app ID and key supplied.
 $ gh alias set token -s 'ghtoken generate --key /tmp/private-key.pem --app_id 112233'
