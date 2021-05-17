@@ -396,11 +396,11 @@ jobs:
 
 ## Troubleshoot
 
-### I'm getting: `Something went awry creating the jwt` with `ghtoken generate`
+#### I'm getting: `Something went awry creating the jwt` with `ghtoken generate`
 
 Make sure your `pem` file has the extension `.pem`. This is necessary for `jwt-cli` to be able to determine the type of key it's trying to parse.
 
-### I get `null` values for `token` and `expiration date`
+#### I get `null` values for `token` and `expiration date`
 
 If you see this response:
 
@@ -413,7 +413,7 @@ If you see this response:
 
 This is an indication that the script was not able to fetch an `installation id` and that the GitHub App has not been `installed` for an Organization or User.
 
-### I get a weird syntax error
+#### I get a weird syntax error
 
 Make sure you're running `bash 5.x+`. If you're running MacOS, the version of `bash` installed is `3.2` which is not compatible with this tool.
 
