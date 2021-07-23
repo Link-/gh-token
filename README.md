@@ -428,6 +428,7 @@ _These are not endorsements, just a listing of similar art work_
 
 ### CLI
 
+- [apptokit](https://github.com/jakewilkins/apptokit) in Ruby
 - [gha-token](https://github.com/slawekzachcial/gha-token) in Go
 
 ### Actions
