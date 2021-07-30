@@ -9,7 +9,7 @@
 
 > Create an installation access token for a GitHub app from your terminal
 
-[![ghtoken size](https://img.shields.io/github/size/link-/github-app-bash/ghtoken?style=flat-square)](ghtoken) [![License](https://img.shields.io/github/license/link-/github-app-bash?style=flat-square)](LICENSE) ![platforms supported](https://img.shields.io/static/v1?style=flat-square&label=platform&message=macos%20%7C%20linux)
+[![ghtoken size](https://img.shields.io/github/size/link-/gh-token/ghtoken?style=flat-square)](ghtoken) [![License](https://img.shields.io/github/license/link-/gh-token?style=flat-square)](LICENSE) ![platforms supported](https://img.shields.io/static/v1?style=flat-square&label=platform&message=macos%20%7C%20linux)
 
 [Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account. Installation tokens expire 1 hour from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
 
@@ -44,14 +44,14 @@ With an access token generated with a GitHub App you don't have to worry about t
 - `jq`
 - `shasum`
 
-Download `ghtoken` [from the main branch](https://github.com/Link-/github-app-bash/blob/main/ghtoken)
+Download `ghtoken` [from the main branch](https://github.com/Link-/gh-token/blob/main/gh-token)
 
 ### wget
 
 ```sh
 # Download a file, name it ghtoken then do a checksum
 wget -O ghtoken \
-    https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
+    https://raw.githubusercontent.com/Link-/gh-token/main/gh-token && \
     echo "11630050d3859d7fcaa42fad08c184cfe2ceeb3887779dc76394c4dba80903ef  ghtoken" | \
     shasum -c - && \
     chmod u+x ./ghtoken
@@ -65,7 +65,7 @@ wget -O ghtoken \
 # do a checksum
 curl -o ghtoken \
      -O -L -C  - \
-     https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
+     https://raw.githubusercontent.com/Link-/gh-token/main/gh-token && \
      echo "11630050d3859d7fcaa42fad08c184cfe2ceeb3887779dc76394c4dba80903ef  ghtoken" | \
      shasum -c - && \
      chmod u+x ./ghtoken
@@ -362,7 +362,7 @@ jobs:
       run: |
         curl -o ghtoken \
              -O -L -C  - \
-             https://raw.githubusercontent.com/Link-/github-app-bash/main/ghtoken && \
+             https://raw.githubusercontent.com/Link-/gh-token/main/gh-token && \
              echo "11630050d3859d7fcaa42fad08c184cfe2ceeb3887779dc76394c4dba80903ef  ghtoken" | \
              shasum -c - && \
              chmod u+x ./ghtoken
