@@ -71,6 +71,19 @@ curl -o ghtoken \
      chmod u+x ./ghtoken
 ```
 
+### gh cli extension
+
+You can install `ghtoken` as a [gh cli](https://github.com/cli/cli) extension!
+
+```sh
+gh extensions install Link-/gh-token
+
+# Verify installation
+gh token
+```
+
+All the commands and parameters remain the same, the only different is you now can use `gh token` instead of `ghtoken`.
+
 ### Creating a GitHub App
 
 Follow [these steps](https://docs.github.com/en/developers/apps/creating-a-github-app)
