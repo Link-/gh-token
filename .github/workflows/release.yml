@@ -21,7 +21,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
     - name: "Calculate new SHA256 hash"
       run: |
-        new_sha="$(shasum -a 256 gh-token)"
+        new_sha="$(shasum -a 256 gh-token | sed -r 's/gh-token/ghtoken/g')"
         sed -r "s/echo \"[0-9a-f]{64}  ghtoken\"/echo \"$new_sha\"/g" -i README.md
     - name: "Commit and push updates"
       uses: EndBug/add-and-commit@a3adef035a1381dcf888c90b847240e2ddb9e008
