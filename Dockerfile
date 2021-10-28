@@ -44,6 +44,7 @@ LABEL com.github.actions.name="GH-Token" \
 ########################
 # Install dependencies #
 ########################
+# hadolint ignore=DL3018
 RUN apk add --no-cache \
     bash \
     git \
