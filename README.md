@@ -16,7 +16,8 @@
 [![ghtoken size](https://img.shields.io/github/size/link-/gh-token/ghtoken?style=flat-square)](ghtoken) [![License](https://img.shields.io/github/license/link-/gh-token?style=flat-square)](LICENSE) ![platforms supported](https://img.shields.io/static/v1?style=flat-square&label=platform&message=macos%20%7C%20linux)
 <!-- markdownlint-restore -->
 
-[Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account. Installation tokens expire 1 hour from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
+[Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account.
+Installation tokens expire 1 hour from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
 
 You can use this access token to make pretty much any REST or GraphQL API call the app is authorized to make!
 
