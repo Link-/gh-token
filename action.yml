@@ -1,0 +1,12 @@
+---
+name: 'gh-token'
+author: 'GitHub'
+description: 'It is a simple dockerfile to help make converting GitHub App Authentication into an Action.'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+branding:
+  icon: 'check-square'
+  color: 'blue'
+# You can view https://github.com/github/super-linter#environment-variables
+# to see a comprehensive list of all environment variables that can be passed
