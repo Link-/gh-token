@@ -44,15 +44,16 @@ LABEL com.github.actions.name="GH-Token" \
 ########################
 # Install dependencies #
 ########################
-# hadolint ignore=DL3018
+# hadolint ignore=DL3008
 RUN apt-get update \
-    && apt-get install -y\
+    && apt-get install --no-install-recommends -y \
     bash \
     curl \
     git \
     jq \
     perl \
-    vim
+    vim \
+    && rm -rf /var/lib/apt/lists/*
 
 ###########################
 # Copy files to container #
