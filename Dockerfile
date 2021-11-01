@@ -7,7 +7,7 @@
 ######################
 # Pull in base image #
 ######################
-FROM alpine:3.14.2 as final
+FROM ubuntu:20.04 as final
 
 ###########################
 # Get the build arguments #
@@ -45,13 +45,14 @@ LABEL com.github.actions.name="GH-Token" \
 # Install dependencies #
 ########################
 # hadolint ignore=DL3018
-RUN apk add --no-cache \
+RUN apt-get update \
+    && apt-get install -y\
     bash \
     curl \
     git \
     jq \
-    ncurses \
-    perl-utils
+    perl \
+    vim
 
 ###########################
 # Copy files to container #
