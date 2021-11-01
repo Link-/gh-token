@@ -75,6 +75,8 @@ RunAction() {
     fi
     # Run the generate command
     eval "${COMMAND}"
+    # will need to catch the return and parse the token
+    # echo "BUILD_DATE=\"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\" >> ${GITHUB_ENV}"
   ##################
   # Revoke a token #
   ##################
