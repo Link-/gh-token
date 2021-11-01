@@ -46,7 +46,7 @@ With an access token generated with a GitHub App you don't have to worry about t
 
 You can run the `gh-token` tool as a **GitHub Action**. All you need to do is load the Action's parameters, and your off to creating jobs that `generate`, `revoke`, or check `installations`.
 
-### Usage
+### Action Usage
 
 ```yml
 steps:
