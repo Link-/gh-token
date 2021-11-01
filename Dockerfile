@@ -47,14 +47,25 @@ LABEL com.github.actions.name="GH-Token" \
 # hadolint ignore=DL3018
 RUN apk add --no-cache \
     bash \
+    curl \
     git \
     jq \
+    ncurses \
     perl
 
 ###########################
 # Copy files to container #
 ###########################
 COPY gh-token /
+COPY .automation/run-gh-token.sh /
+
+###################
+# Install JWT-CLI #
+###################
+RUN curl -sL https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/jwt-linux.tar.gz --output jwt-linux.tar.gz \
+    && tar xvfz jwt-linux.tar.gz \
+    && rm -f jwt-linux.tar.gz \
+    && mv jwt /usr/bin
 
 ######################
 # Set the entrypoint #
