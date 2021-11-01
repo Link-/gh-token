@@ -51,7 +51,7 @@ RUN apk add --no-cache \
     git \
     jq \
     ncurses \
-    perl
+    perl-utils
 
 ###########################
 # Copy files to container #
