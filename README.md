@@ -42,6 +42,34 @@ In order to use GitHub's [REST](https://docs.github.com/en/rest) or [GraphQL](ht
 
 With an access token generated with a GitHub App you don't have to worry about the concerns above. These tokens have a limited scope and lifetime. Just make sure you handle the token safely (avoid leaking). In the worst case scenario, the token will expire in 1 hour from creation time.
 
+## GitHub Action
+
+You can run the `gh-token` tool as a **GitHub Action**. All you need to do is load the Action's parameters, and your off to creating jobs that `generate`, `revoke`, or check `installations`.
+
+### Usage
+
+```yml
+steps:
+  - name: "Generate Token"
+    uses: link-/gh-token@v1
+    with:
+      # Default action: generate | Options: generate, revoke, installations
+      ACTION: generate
+      # Path to the private key, or base64 encoded string
+      PRIVATE_KEY: folder/key.pem
+      # GitHub App ID
+      APP_ID: 1234
+      # Duration of the token to live. | Default 10 min
+      DURATION: 15
+      # URRL to GitHub API. | Default: api.github.com
+      GITHUB_HOSTNAME: api.github.com
+      # Installation ID from GitHub App. Used only for checking installations
+      INSTALLATION_ID:
+```
+
+Once this is set, it will run the selected action. If you are running the action `generate`, It will return the value `GENERATED_TOKEN` back to the environment for usage.
+
+
 ## Installation
 
 ### Prerequisites
