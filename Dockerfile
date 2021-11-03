@@ -42,11 +42,18 @@ LABEL com.github.actions.name="GH-Token" \
     org.opencontainers.image.description="Convert GitHub App Auth into PAT"
 
 ########################
+# Specify workdir      #
+########################
+
+WORKDIR /app
+
+########################
 # Install dependencies #
 ########################
 # hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
+    ca-certificates \
     bash \
     curl \
     git \
@@ -58,8 +65,8 @@ RUN apt-get update \
 ###########################
 # Copy files to container #
 ###########################
-COPY gh-token /
-COPY .automation/run-gh-token.sh /
+COPY gh-token .
+COPY .automation/run-gh-token.sh .
 
 ###################
 # Install JWT-CLI #
