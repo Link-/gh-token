@@ -3,10 +3,15 @@ name: 'gh-token'
 author: 'GitHub'
 description: >
   It is a simple dockerfile/container to help make converting
-  GitHub App Authentication into a usable Personal Access Token.'
+  GitHub App Authentication into a usable Personal Access Token.
+  It can also be used to revoke tokens, or check installations.
 inputs:
   ACTION:
-    description: 'Action to perform (generate,revoke,installations)'
+    description: >
+      Action to perform (generate,revoke,installations)
+      ACTION 'generate' will return environment variable: GENERATED_TOKEN
+      ACTION 'installations' will return environment variable: INSTALLATIONS
+      ACTION 'revoke' will only pass or fail with successful revoke of token
     default: generate
   PRIVATE_KEY:
     description: >

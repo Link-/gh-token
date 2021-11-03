@@ -54,6 +54,9 @@ steps:
     uses: link-/gh-token@v1
     with:
       # Default action: generate | Options: generate, revoke, installations
+      # ACTION 'generate' will return environment variable: GENERATED_TOKEN
+      # ACTION 'installations' will return environment variable: INSTALLATIONS
+      # ACTION 'revoke' will only pass or fail with successful revoke of token
       ACTION: generate
       # Path to the private key, or base64 encoded string
       PRIVATE_KEY: folder/key.pem
