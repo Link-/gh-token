@@ -1,7 +1,36 @@
 ---
 name: 'gh-token'
 author: 'GitHub'
-description: 'It is a simple dockerfile to help make converting GitHub App Authentication into an Action.'
+description: >
+  It is a simple dockerfile/container to help make converting
+  GitHub App Authentication into a usable Personal Access Token.'
+inputs:
+  ACTION:
+    description: 'Action to perform (generate,revoke,installations)'
+    default: generate
+  PRIVATE_KEY:
+    description: >
+      This is the PRIVATE_KEY from the users created GitHub App.
+      The user must pass the file location, or have the contents stored in
+      a string like ${{ secrets.PRIVATE_KEY }}
+  APP_ID:
+    description: >
+      The APP_ID for the GitHub App that we are generating
+      a Personal Access Token from.
+  TOKEN:
+    description: >
+      (Optional) The GitHub Personal Access Token you want to use.
+      This can be for the ACTION: revoke
+  DURATION:
+    description: The duration of time for the Personal Access Token to live.
+    default: 10
+  GITHUB_HOSTNAME:
+    description: >
+      (Optional) this is used for users on GHES. You can change
+      from the defult to your GHES api url. Example: mycompany.ghes.com/api
+    default: api.github.com
+  INSTALLATION_ID:
+    description: INSTALLATION_ID from users created GitHub App
 runs:
   using: 'docker'
   image: 'Dockerfile'

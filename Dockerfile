@@ -39,7 +39,7 @@ LABEL com.github.actions.name="GH-Token" \
     org.opencontainers.image.source="https://github.com/link-/gh-token" \
     org.opencontainers.image.documentation="https://github.com/link-/gh-tokenr" \
     org.opencontainers.image.vendor="GitHub" \
-    org.opencontainers.image.description="Convert GitHub App Auth into PAT"
+    org.opencontainers.image.description="Convert GitHub App into usable PAT"
 
 ########################
 # Specify workdir      #
@@ -52,8 +52,8 @@ WORKDIR /app
 # hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-    ca-certificates \
     bash \
+    ca-certificates \
     curl \
     git \
     jq \
@@ -78,4 +78,4 @@ RUN curl -sL https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/jwt-l
 ######################
 # Set the entrypoint #
 ######################
-ENTRYPOINT ["/bin/bash"]
+ENTRYPOINT ["./.automation/run-gh-token.sh"]

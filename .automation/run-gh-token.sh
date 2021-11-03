@@ -74,9 +74,20 @@ RunAction() {
       COMMAND+=" --installation_id ${INSTALLATION_ID}"
     fi
     # Run the generate command
-    eval "${COMMAND}"
-    # will need to catch the return and parse the token
-    # echo "BUILD_DATE=\"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\" >> ${GITHUB_ENV}"
+    GENERATE_TOKEN_CMD="$(${COMMAND})"
+    # put value into var
+    GENERATED_TOKEN=$(echo "${GENERATE_TOKEN_CMD}" | jq -r .token 2>&1)
+    # Validate we have a token value
+    if [ ${#GENERATED_TOKEN} -ne 40 ]; then
+      echo "ERROR! Failed to generate token!"
+      echo "ERROR:[${GENERATE_TOKEN_CMD}]"
+      exit 1
+    else
+      echo "Successfully genrated token!"
+      echo "Pushing token to env as:[GENERATED_TOKEN]"
+      # push the token to the env
+      echo "GENERATED_TOKEN=\"${GENERATED_TOKEN}\" >> ${GITHUB_ENV}"
+    fi
   ##################
   # Revoke a token #
   ##################
@@ -84,7 +95,17 @@ RunAction() {
     # Build the basic command
     COMMAND="./gh-token revoke --token ${TOKEN} --hostname ${GITHUB_HOSTNAME}"
     # Run the generate command
-    eval "${COMMAND}"
+    REVOKE_CMD="$(${COMMAND})"
+    # Get the output error code
+    ERROR_CODE=$(echo "${REVOKE_CMD}" |cut -c1-3 2>&1)
+    # Check if 204 for success
+    if [ "${ERROR_CODE}" -eq 204 ]; then
+      echo "Successfully revoked the token"
+    else
+      echo "ERROR! Failed to revoke token!"
+      echo "ERROR:[${REVOKE_CMD}]"
+      exit 1
+    fi
   ###########################
   # Check the installations #
   ###########################
@@ -92,7 +113,9 @@ RunAction() {
     # Build the basic command
     COMMAND="./gh-token installations --key ${PRIVATE_KEY} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
     # Run the generate command
-    eval "${COMMAND}"
+    INSTALL_CMD="$(${COMMAND} 2>&1)"
+    # push the token to the env
+    echo "INSTALLATIONS=\"${INSTALL_CMD}\" >> ${GITHUB_ENV}"
   fi
 }
 ################################################################################
