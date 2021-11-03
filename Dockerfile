@@ -44,7 +44,6 @@ LABEL com.github.actions.name="GH-Token" \
 ########################
 # Specify workdir      #
 ########################
-
 WORKDIR /app
 
 ########################
