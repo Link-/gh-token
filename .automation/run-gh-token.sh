@@ -15,6 +15,7 @@ DURATION="${DURATION:-10}"                           # Duration of the Tokens Li
 GITHUB_HOSTNAME="${GITHUB_HOSTNAME:-api.github.com}" # Hostname to call API endpoints
 INSTALLATION_ID="${INSTALLATION_ID:-null}"           # INSTALLATION_ID from users created GitHub App
 NUM_REGEX='^[0-9]+$'                                 # Regex to check numbers
+BASE_REGEX='[A-Za-z0-9]+={1,2}'                      # Check if a string is base64
 
 ################################################################################
 ############################## Functions Below #################################
@@ -68,7 +69,13 @@ RunAction() {
   ####################
   if [ "${ACTION}" == "generate" ]; then
     # Build the basic command
-    COMMAND="./gh-token generate --key ${PRIVATE_KEY} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
+    PRIVATE_KEY_CMD=''
+    if [ -f "${PRIVATE_KEY}"]; then
+      PRIVATE_KEY_CMD="--key --key ${PRIVATE_KEY}"
+    elif [[ "${PRIVATE_KEY}" =~ ${BASE_REGEX} ]]; then
+      PRIVATE_KEY_CMD="--base64_key ${PRIVATE_KEY}"
+    fi
+    COMMAND="./gh-token generate ${PRIVATE_KEY_CMD} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
     # Add the INSTALLATION_ID if set
     if [[ ${INSTALLATION_ID} =~ ${NUM_REGEX} ]]; then
       COMMAND+=" --installation_id ${INSTALLATION_ID}"
