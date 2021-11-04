@@ -70,7 +70,7 @@ RunAction() {
   if [ "${ACTION}" == "generate" ]; then
     # Build the basic command
     PRIVATE_KEY_CMD=''
-    if [ -f "${PRIVATE_KEY}"]; then
+    if [ -f "${PRIVATE_KEY}" ]; then
       PRIVATE_KEY_CMD="--key --key ${PRIVATE_KEY}"
     elif [[ "${PRIVATE_KEY}" =~ ${BASE_REGEX} ]]; then
       PRIVATE_KEY_CMD="--base64_key ${PRIVATE_KEY}"
