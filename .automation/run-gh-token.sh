@@ -7,13 +7,13 @@
 ###########
 # Globals #
 ###########
-ACTION="${ACTION:-generate}"                         # Action to perform (generate,revoke,installations)
-PRIVATE_KEY="${PRIVATE_KEY:-null}"                   # PRIVATE_KEY from users created GitHub App
-APP_ID="${APP_ID:-null}"                             # APP_ID from users created GitHub App
-TOKEN="${TOKEN:-null}"                               # The generated GitHub Personal Access Token
-DURATION="${DURATION:-10}"                           # Duration of the JWT lifespan. [default: 10min]
-GITHUB_HOSTNAME="${GITHUB_HOSTNAME:-api.github.com}" # Hostname to call API endpoints
-INSTALLATION_ID="${INSTALLATION_ID:-null}"           # INSTALLATION_ID from users created GitHub App
+ACTION="${INPUT_ACTION:-generate}"                         # Action to perform (generate,revoke,installations)
+PRIVATE_KEY="${INPUT_PRIVATE_KEY:-null}"                   # PRIVATE_KEY from users created GitHub App
+APP_ID="${INPUT_APP_ID:-null}"                             # APP_ID from users created GitHub App
+TOKEN="${INPUT_TOKEN:-null}"                               # The generated GitHub Personal Access Token
+DURATION="${INPUT_DURATION:-10}"                           # Duration of the JWT lifespan. [default: 10min]
+GITHUB_HOSTNAME="${INPUT_GITHUB_HOSTNAME:-api.github.com}" # Hostname to call API endpoints
+INSTALLATION_ID="${INPUT_INSTALLATION_ID:-null}"           # INSTALLATION_ID from users created GitHub App
 NUM_REGEX='^[0-9]+$'                                 # Regex to check numbers
 BASE_REGEX='[A-Za-z0-9]+={1,2}'                      # Check if a string is base64
 
