@@ -17,7 +17,7 @@ inputs:
     description: >
       This is the PRIVATE_KEY from the users created GitHub App.
       The user must pass the file location, or have the contents stored in
-      a string like ${{ secrets.PRIVATE_KEY }}
+      a GitHub secret.
   APP_ID:
     description: >
       The APP_ID for the GitHub App that we are generating
