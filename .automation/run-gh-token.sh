@@ -75,7 +75,7 @@ RunAction() {
     elif [[ "${PRIVATE_KEY}" =~ ${BASE_REGEX} ]]; then
       PRIVATE_KEY_CMD="--base64_key ${PRIVATE_KEY}"
     fi
-    COMMAND="./gh-token generate ${PRIVATE_KEY_CMD} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
+    COMMAND="/app/gh-token generate ${PRIVATE_KEY_CMD} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
     # Add the INSTALLATION_ID if set
     if [[ ${INSTALLATION_ID} =~ ${NUM_REGEX} ]]; then
       COMMAND+=" --installation_id ${INSTALLATION_ID}"
@@ -100,7 +100,7 @@ RunAction() {
   ##################
   elif [ "${ACTION}" == "revoke" ]; then
     # Build the basic command
-    COMMAND="./gh-token revoke --token ${TOKEN} --hostname ${GITHUB_HOSTNAME}"
+    COMMAND="/app/gh-token revoke --token ${TOKEN} --hostname ${GITHUB_HOSTNAME}"
     # Run the generate command
     REVOKE_CMD="$(${COMMAND})"
     # Get the output error code
@@ -118,7 +118,7 @@ RunAction() {
   ###########################
   elif [ "${ACTION}" == "installations" ]; then
     # Build the basic command
-    COMMAND="./gh-token installations --key ${PRIVATE_KEY} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
+    COMMAND="/app/gh-token installations --key ${PRIVATE_KEY} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
     # Run the generate command
     INSTALL_CMD="$(${COMMAND} 2>&1)"
     # push the token to the env
