@@ -13,7 +13,7 @@
 
 > Create an installation access token for a GitHub app from your terminal
 
-[![ghtoken size](https://img.shields.io/github/size/link-/gh-token/ghtoken?style=flat-square)](ghtoken) [![License](https://img.shields.io/github/license/link-/gh-token?style=flat-square)](LICENSE) ![platforms supported](https://img.shields.io/static/v1?style=flat-square&label=platform&message=macos%20%7C%20linux)
+[![ghtoken size](https://img.shields.io/github/size/link-/gh-token/gh-token?style=flat-square)](ghtoken) [![License](https://img.shields.io/github/license/link-/gh-token?style=flat-square)](LICENSE) ![platforms supported](https://img.shields.io/static/v1?style=flat-square&label=platform&message=macos%20%7C%20linux) ![GitHub release (latest by date)](https://img.shields.io/github/v/release/link-/gh-token)
 <!-- markdownlint-restore -->
 
 [Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account.
@@ -41,37 +41,6 @@ In order to use GitHub's [REST](https://docs.github.com/en/rest) or [GraphQL](ht
 1. cannot be revoked (they're only revoked when a new one is generated)
 
 With an access token generated with a GitHub App you don't have to worry about the concerns above. These tokens have a limited scope and lifetime. Just make sure you handle the token safely (avoid leaking). In the worst case scenario, the token will expire in 1 hour from creation time.
-
-## GitHub Action
-
-You can run the `gh-token` tool as a **GitHub Action**. All you need to do is load the Action's parameters, and your off to creating jobs that `generate`, `revoke`, or check `installations`.
-
-### Action Usage
-
-```yml
-steps:
-  - name: "Generate Token"
-    uses: link-/gh-token@v1
-    with:
-      # Default action: generate | Options: generate, revoke, installations
-      # ACTION 'generate' will return environment variable: GENERATED_TOKEN
-      # ACTION 'installations' will return environment variable: INSTALLATIONS
-      # ACTION 'revoke' will only pass or fail with successful revoke of token
-      ACTION: generate
-      # Path to the private key, or base64 encoded string
-      PRIVATE_KEY: folder/key.pem
-      # GitHub App ID
-      APP_ID: 1234
-      # Duration of the token to live. | Default 10 min
-      DURATION: 15
-      # URRL to GitHub API. | Default: api.github.com
-      GITHUB_HOSTNAME: api.github.com
-      # Installation ID from GitHub App. Used only for checking installations
-      INSTALLATION_ID:
-```
-
-Once this is set, it will run the selected action. If you are running the action `generate`, It will return the value `GENERATED_TOKEN` back to the environment for usage.
-
 
 ## Installation
 
@@ -150,6 +119,36 @@ Options:
   -l <id>, --installation_id <id>       GitHub App installation id. [default: latest id]
   -t <token>, --token <token>           Access token to revoke. [required]
 ```
+
+### GitHub Action
+
+You can use the `gh-token` tool as a **GitHub Action**. All you need to do is load the Action's parameters, and your off to creating jobs that `generate`, `revoke`, or fetch `installations` details.
+
+#### Example workflow
+
+```yml
+steps:
+  - name: "Generate Token"
+    uses: link-/gh-token@v1
+    with:
+      # Default action: generate | Options: generate, revoke, installations
+      # ACTION 'generate' will return environment variable: GENERATED_TOKEN
+      # ACTION 'installations' will return environment variable: INSTALLATIONS
+      # ACTION 'revoke' will only pass or fail with successful revoke of token
+      ACTION: generate
+      # Path to the private key, or base64 encoded string
+      PRIVATE_KEY: folder/key.pem
+      # GitHub App ID
+      APP_ID: 1234
+      # Duration of the JWT to live. | Default 10 min
+      DURATION: 15
+      # URRL to GitHub API. | Default: api.github.com
+      GITHUB_HOSTNAME: api.github.com
+      # Installation ID from GitHub App. Used only for checking installations
+      INSTALLATION_ID:
+```
+
+Once this is set, it will run the selected action. If you are running the action `generate`, It will return the value `GENERATED_TOKEN` back to the environment for usage.
 
 ### Examples in the Terminal
 
@@ -381,69 +380,6 @@ $ gh revokeToken "ghs_1gCKrYvkh3_______7JZFlZw______w1FE"
 204: Token revoked successfully
 ```
 
-### Example in a workflow
-
-<details>
-
-  <summary>Expand to show instructions</summary>
-
-1. You need to create a secret to store the **applications private key** securely (this can be an organization or a repository secret):
-    ![Create private key secret](images/create_secret.png)
-
-1. You need to create another secret to store the **application id** security (same as the step above).
-
-1. The secrets need to be provided as an environment variable then encoded into base64 as show in the workflow example:
-
-This example is designed to run on GitHub Enterprise Server. To use the same workflow with GitHub.com update the hostname to `api.github.com` and change the API URL in the testing step.
-
-```yaml
-name: Create access token via GitHub Apps Workflow
-
-on:
-  workflow_dispatch:
-
-jobs:
-  Test:
-    # The type of runner that the job will run on
-    runs-on: [ self-hosted ]
-
-    steps:
-    - name: "Download ghtoken"
-      run: |
-        curl -o ghtoken \
-             -O -L -C  - \
-             https://raw.githubusercontent.com/Link-/gh-token/main/gh-token && \
-             echo "11630050d3859d7fcaa42fad08c184cfe2ceeb3887779dc76394c4dba80903ef  ghtoken" | \
-             shasum -c - && \
-             chmod u+x ./ghtoken
-    # Create access token with a GitHub App ID and Key
-    # We use the private key stored as a secret and encode it into base64
-    # before passing it to ghtoken
-    - name: "Create access token"
-      id: "create_token"
-      run: |
-        token=$(./ghtoken generate \
-          --base64_key $(printf "%s" "$APP_PRIVATE_KEY" | base64 -w 0) \
-          --app_id $APP_ID \
-          --install_jwt_cli \
-          --hostname "github.example.com" \
-          | jq -r ".token")
-        echo "::set-output name=token::$token"
-      env:
-        APP_ID: ${{ secrets.APP_ID }}
-        APP_PRIVATE_KEY: ${{ secrets.APP_KEY }}
-    # To test the token we will use it to fetch the list of repositories
-    # belonging to our organization
-    - name: "Fetch organization repositories"
-      run: |
-        curl -X GET \
-          -H "Authorization: token ${{ steps.create_token.outputs.token }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://github.example.com/api/v3/orgs/<ORGNAME>/repos
-```
-
-</details>
-
 ## Troubleshoot
 
 ### I'm getting: `Something went awry creating the jwt` with `ghtoken generate`
@@ -471,6 +407,10 @@ Make sure you're running `bash 5.x+`. If you're running MacOS, the version of `b
 # Upgrade bash and that should resolve your problem
 brew upgrade bash
 ```
+
+### Where do I get the installation id from?
+
+You can install a GitHub on 1 or more organizations. As such, the installation id points to a specific installation on a specific organization. By default `gh-token` will use the latest installation id, however, you have the option to point to any installation and you can fetch that id with the `installations` command. Check the `Fetch list of installations for an app` above for more details.
 
 ## Similar projects
 
