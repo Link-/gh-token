@@ -7,15 +7,15 @@
 ###########
 # Globals #
 ###########
-ACTION="${INPUT_ACTION:-generate}"                         # Action to perform (generate,revoke,installations)
-PRIVATE_KEY="${INPUT_PRIVATE_KEY:-null}"                   # PRIVATE_KEY from users created GitHub App
-APP_ID="${INPUT_APP_ID:-null}"                             # APP_ID from users created GitHub App
-TOKEN="${INPUT_TOKEN:-null}"                               # The generated GitHub Personal Access Token
-DURATION="${INPUT_DURATION:-10}"                           # Duration of the JWT lifespan. [default: 10min]
-GITHUB_HOSTNAME="${INPUT_GITHUB_HOSTNAME:-api.github.com}" # Hostname to call API endpoints
-INSTALLATION_ID="${INPUT_INSTALLATION_ID:-null}"           # INSTALLATION_ID from users created GitHub App
-NUM_REGEX='^[0-9]+$'                                 # Regex to check numbers
-BASE_REGEX='[A-Za-z0-9]+={1,2}'                      # Check if a string is base64
+ACTION="${INPUT_ACTION:-generate}"                          # Action to perform (generate,revoke,installations)
+PRIVATE_KEY="${INPUT_PRIVATE_KEY:-null}"                    # PRIVATE_KEY from users created GitHub App
+APP_ID="${INPUT_APP_ID:-null}"                              # APP_ID from users created GitHub App
+TOKEN="${INPUT_TOKEN:-null}"                                # The generated GitHub Personal Access Token
+DURATION="${INPUT_DURATION:-10}"                            # Duration of the JWT lifespan. [default: 10min]
+GITHUB_HOSTNAME="${INPUT_GITHUB_HOSTNAME:-api.github.com}"  # Hostname to call API endpoints
+INSTALLATION_ID="${INPUT_INSTALLATION_ID:-null}"            # INSTALLATION_ID from users created GitHub App
+NUM_REGEX='^[0-9]+$'                                        # Regex to check numbers
+BASE_REGEX='[A-Za-z0-9]+={1,2}'                             # Check if a string is base64
 
 ################################################################################
 ############################## Functions Below #################################
@@ -75,7 +75,7 @@ RunAction() {
     elif [[ "${PRIVATE_KEY}" =~ ${BASE_REGEX} ]]; then
       PRIVATE_KEY_CMD="--base64_key ${PRIVATE_KEY}"
     fi
-    COMMAND="/app/gh-token generate ${PRIVATE_KEY_CMD} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
+    COMMAND="./gh-token generate ${PRIVATE_KEY_CMD} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
     # Add the INSTALLATION_ID if set
     if [[ ${INSTALLATION_ID} =~ ${NUM_REGEX} ]]; then
       COMMAND+=" --installation_id ${INSTALLATION_ID}"
@@ -100,7 +100,7 @@ RunAction() {
   ##################
   elif [ "${ACTION}" == "revoke" ]; then
     # Build the basic command
-    COMMAND="/app/gh-token revoke --token ${TOKEN} --hostname ${GITHUB_HOSTNAME}"
+    COMMAND="./gh-token revoke --token ${TOKEN} --hostname ${GITHUB_HOSTNAME}"
     # Run the generate command
     REVOKE_CMD="$(${COMMAND})"
     # Get the output error code
@@ -118,7 +118,7 @@ RunAction() {
   ###########################
   elif [ "${ACTION}" == "installations" ]; then
     # Build the basic command
-    COMMAND="/app/gh-token installations --key ${PRIVATE_KEY} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
+    COMMAND="./gh-token installations --key ${PRIVATE_KEY} --app_id ${APP_ID} --duration ${DURATION} --hostname ${GITHUB_HOSTNAME}"
     # Run the generate command
     INSTALL_CMD="$(${COMMAND} 2>&1)"
     # push the token to the env
