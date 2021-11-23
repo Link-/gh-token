@@ -79,4 +79,4 @@ RUN curl -sL https://github.com/mike-engel/jwt-cli/releases/download/4.0.0/jwt-l
 ######################
 # Set the entrypoint #
 ######################
-ENTRYPOINT ["/app/run-gh-token.sh"]
+ENTRYPOINT ["run-gh-token.sh"]
