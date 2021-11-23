@@ -407,9 +407,9 @@ Make sure you're running `bash 5.x+`. If you're running MacOS, the version of `b
 brew upgrade bash
 ```
 
-### Where do I get the installation id from?
+### Where do I get the installation ID from?
 
-You can install a GitHub on 1 or more organizations. As such, the installation id points to a specific installation on a specific organization. By default `gh-token` will use the latest installation id, however, you have the option to point to any installation and you can fetch that id with the `installations` command. Check the `Fetch list of installations for an app` above for more details.
+You can install a GitHub on 1 or more organizations. As such, the installation ID points to a specific installation on a specific organization. By default `gh-token` will use the latest installation id, however, you have the option to point to any installation and you can fetch that ID with the `installations` command. Check the `Fetch list of installations for an app` above for more details.
 
 ## Similar projects
 
