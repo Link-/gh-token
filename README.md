@@ -14,7 +14,6 @@
 > Create an installation access token for a GitHub app from your terminal
 
 [![ghtoken size](https://img.shields.io/github/size/link-/gh-token/gh-token?style=flat-square)](ghtoken) [![License](https://img.shields.io/github/license/link-/gh-token?style=flat-square)](LICENSE) ![platforms supported](https://img.shields.io/static/v1?style=flat-square&label=platform&message=macos%20%7C%20linux) ![GitHub release (latest by date)](https://img.shields.io/github/v/release/link-/gh-token)
-<!-- markdownlint-restore -->
 
 [Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account.
 Installation tokens expire 1 hour from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
