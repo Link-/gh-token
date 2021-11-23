@@ -6,7 +6,7 @@ on:
     branches:
     - main
     paths:
-    - 'ghtoken'
+    - 'gh-token'
 
 jobs:
   Update:

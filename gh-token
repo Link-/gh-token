@@ -266,7 +266,7 @@ _piped_input() {
 }
 
 # exists_but_not_writable() {
-# 
+#
 _exists_but_not_writable() {
   [[ -e "$1" ]] && ! [[ -r "$1" && -w "$1" && -x "$1" ]]
 }
@@ -568,7 +568,7 @@ _main() {
 # Install jwt-cli
 # Will download the binary suitable for the running OS into the directory
 # where this script is located
-# 
+#
 # Source: https://github.com/mike-engel/jwt-cli
 ###############################################################################
 
@@ -578,7 +578,7 @@ _install_jwt_cli() {
   local _base_dir=
   _base_dir=$(_get_local_directory)
 
-  if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "freebsd"* ]]; then
+  if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux-musl"* || "$OSTYPE" == "freebsd"* ]]; then
     _on_os="Linux"
   elif [[ "$OSTYPE" == "darwin"* ]]; then
     _on_os="macOS"
@@ -755,7 +755,7 @@ revoke() {
 
   if [[ "${_hostname}" == "api.github.com" ]]
   then
-    
+
     # ;-------------------------------------
     # ; Get installation id from GitHub.com
     # ;-------------------------------------
@@ -766,7 +766,7 @@ revoke() {
     # ; Get installation id from GHES
     # ;-------------------------------------
     _api_url="https://${_hostname}/api/v3"
-    
+
   fi
 
   # Revoke the token
@@ -779,7 +779,7 @@ revoke() {
                    -H "Accept: application/vnd.github.v3+json" \
                    "${_api_url}"/installation/token | \
                    jq)
-  
+
   if [[ "${_response}" == 204 ]]
   then
     echo "${_response}: Token revoked successfully"
@@ -913,7 +913,7 @@ installations() {
     # this file will be deleted when the script exists, crashes or is stopped
     _key=$(printf "%s.pem" "$(mktemp)")
     printf "%s" "$(echo "${_base64_key}" | base64 -d)" > "${_key}"
-    # when the script exits or is stopped with ctrl-C the file is 
+    # when the script exits or is stopped with ctrl-C the file is
     # still removed.
     trap 'rm -f -- '"$_key" 0 2 3 15 INT EXIT
   fi
@@ -924,13 +924,13 @@ installations() {
                     -i "${_app_id}" \
                     -P iat=$(( $(date +%s) - 60 )) \
                     -S @"${_key}")
-  
+
   local _app_token=
   local _api_url=
 
   if [[ "${_hostname}" == "api.github.com" ]]
   then
-    
+
     # ;-------------------------------------
     # ; Get installation id from GitHub.com
     # ;-------------------------------------
@@ -941,7 +941,7 @@ installations() {
     # ; Get installation id from GHES
     # ;-------------------------------------
     _api_url="https://${_hostname}/api/v3"
-    
+
   fi
 
   # Fetch the installation_ids
@@ -951,7 +951,7 @@ installations() {
                           -H "Accept: application/vnd.github.v3+json" \
                           "${_api_url}"/app/installations | \
                           jq)
-  
+
   echo "${_installations}"
 }
 
@@ -971,7 +971,7 @@ Options:
   -l <id>, --installation_id <id>       GitHub App installation id. [default: latest id]
 
 Description:
-  Generates a JWT signed with the supplied key and fetches an 
+  Generates a JWT signed with the supplied key and fetches an
   installation token
 HEREDOC
 generate() {
@@ -1089,7 +1089,7 @@ generate() {
     # this file will be deleted when the script exists, crashes or is stopped
     _key=$(printf "%s.pem" "$(mktemp)")
     printf "%s" "$(echo "${_base64_key}" | base64 -d)" > "${_key}"
-    # when the script exits or is stopped with ctrl-C the file is 
+    # when the script exits or is stopped with ctrl-C the file is
     # still removed.
     trap 'rm -f -- '"$_key" 0 2 3 15 INT EXIT
   fi
@@ -1100,13 +1100,13 @@ generate() {
                     -i "${_app_id}" \
                     -P iat=$(( $(date +%s) - 60 )) \
                     -S @"${_key}")
-  
+
   local _app_token=
   local _api_url=
 
   if [[ "${_hostname}" == "api.github.com" ]]
   then
-    
+
     # ;-------------------------------------
     # ; Get installation id from GitHub.com
     # ;-------------------------------------
@@ -1117,7 +1117,7 @@ generate() {
     # ; Get installation id from GHES
     # ;-------------------------------------
     _api_url="https://${_hostname}/api/v3"
-    
+
   fi
 
   # Fetch the latest installation_id only if it wasn't supplied
@@ -1142,7 +1142,7 @@ generate() {
                     -H "Accept: application/vnd.github.v3+json" \
                     "${_api_url}"/app/installations/"${_installation_id}"/access_tokens | \
                     jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
-  
+
   if [[ "${_app_token}" == "failed" ]]
   then
     _exit_1 echo "failed to create app token"
