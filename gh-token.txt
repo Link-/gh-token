@@ -1,0 +1,1159 @@
+#!/usr/bin/env bash
+###############################################################################
+# * _____ _   *_   _______ *  _      *  *    **   *
+#  / ____| |* | | |__   __|  | |  *       *         🦄  *
+# | | *__| |_*| | ⭐ | | ___ | | _____*_ __  *     *
+# | | |_ |* __ *|    |*|/ _ \| |/ / _ \ '_ \     *   *
+# | |__| | |  | | *  | | (_)*|   <  __/ | | |  *
+#  \_____|_|  |_|    |_|\___/|_|\_\___|_| |_|   *
+#
+#
+# Depends on:
+#   - jwt-cli (https://github.com/mike-engel/jwt-cli)
+#
+# Based on:
+#    - Bash Boilerplate: https://github.com/xwmx/bash-boilerplate
+#      Copyright (c) 2015 William Melody • hi@williammelody.com
+###############################################################################
+
+# Short form: set -u
+set -o nounset
+
+# Exit immediately if a pipeline returns non-zero.
+# Short form: set -e
+set -o errexit
+
+# Print a helpful message if a pipeline with non-zero exit code causes the
+# script to exit as described above.
+trap 'echo "Aborting due to errexit on line $LINENO. Exit code: $?" >&2' ERR
+
+# Allow the above trap be inherited by all functions in the script.
+#
+# Short form: set -E
+set -o errtrace
+
+# Return value of a pipeline is the value of the last (rightmost) command to
+# exit with a non-zero status, or zero if all commands in the pipeline exit
+# successfully.
+set -o pipefail
+
+# Set $IFS to only newline and tab.
+#
+# http://www.dwheeler.com/essays/filenames-in-shell.html
+IFS=$'\n\t'
+
+###############################################################################
+# Globals
+###############################################################################
+
+# $_ME
+#
+# This program's basename.
+_ME="$(basename "${0}")"
+
+# $_VERSION
+#
+# Manually set this to to current version of the program. Adhere to the
+# semantic versioning specification: http://semver.org
+_VERSION="0.2.0-alpha"
+
+# $DEFAULT_SUBCOMMAND
+#
+# The subcommand to be run by default, when no subcommand name is specified.
+# If the environment has an existing $DEFAULT_SUBCOMMAND set, then that value
+# is used.
+DEFAULT_SUBCOMMAND="${DEFAULT_SUBCOMMAND:-help}"
+
+###############################################################################
+# Debug
+###############################################################################
+
+# _debug()
+#
+# Usage:
+#   _debug <command> <options>...
+#
+# Description:
+#   Execute a command and print to standard error. The command is expected to
+#   print a message and should typically be either `echo`, `printf`, or `cat`.
+#
+# Example:
+#   _debug printf "Debug info. Variable: %s\\n" "$0"
+__DEBUG_COUNTER=0
+_debug() {
+  if ((${_USE_DEBUG:-0}))
+  then
+    __DEBUG_COUNTER=$((__DEBUG_COUNTER+1))
+    {
+      # Prefix debug message with "bug (U+1F41B)"
+      printf "🐛  %s " "${__DEBUG_COUNTER}"
+      "${@}"
+      printf "―――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――\\n"
+    } 1>&2
+  fi
+}
+
+###############################################################################
+# Error Messages
+###############################################################################
+
+# _exit_1()
+#
+# Usage:
+#   _exit_1 <command>
+#
+# Description:
+#   Exit with status 1 after executing the specified command with output
+#   redirected to standard error. The command is expected to print a message
+#   and should typically be either `echo`, `printf`, or `cat`.
+_exit_1() {
+  {
+    printf "%s " "$(tput setaf 1)!$(tput sgr0)"
+    "${@}"
+  } 1>&2
+  exit 1
+}
+
+# _warn()
+#
+# Usage:
+#   _warn <command>
+#
+# Description:
+#   Print the specified command with output redirected to standard error.
+#   The command is expected to print a message and should typically be either
+#   `echo`, `printf`, or `cat`.
+_warn() {
+  {
+    printf "%s " "$(tput setaf 1)!$(tput sgr0)"
+    "${@}"
+  } 1>&2
+}
+
+###############################################################################
+# Utility Functions
+###############################################################################
+
+# _function_exists()
+#
+# Usage:
+#   _function_exists <name>
+#
+# Exit / Error Status:
+#   0 (success, true) If function with <name> is defined in the current
+#                     environment.
+#   1 (error,  false) If not.
+#
+# Other implementations, some with better performance:
+# http://stackoverflow.com/q/85880
+_function_exists() {
+  [ "$(type -t "${1}")" == 'function' ]
+}
+
+# _command_exists()
+#
+# Usage:
+#   _command_exists <name>
+#
+# Exit / Error Status:
+#   0 (success, true) If a command with <name> is defined in the current
+#                     environment.
+#   1 (error,  false) If not.
+#
+# Information on why `hash` is used here:
+# http://stackoverflow.com/a/677212
+_command_exists() {
+  hash "${1}" 2>/dev/null
+}
+
+# _contains()
+#
+# Usage:
+#   _contains <query> <list-item>...
+#
+# Exit / Error Status:
+#   0 (success, true)  If the item is included in the list.
+#   1 (error,  false)  If not.
+#
+# Examples:
+#   _contains "${_query}" "${_list[@]}"
+_contains() {
+  local _query="${1:-}"
+  shift
+
+  if [[ -z "${_query}"  ]] ||
+     [[ -z "${*:-}"     ]]
+  then
+    return 1
+  fi
+
+  for __element in "${@}"
+  do
+    [[ "${__element}" == "${_query}" ]] && return 0
+  done
+
+  return 1
+}
+
+# _join()
+#
+# Usage:
+#   _join <delimiter> <list-item>...
+#
+# Description:
+#   Print a string containing all <list-item> arguments separated by
+#   <delimeter>.
+#
+# Example:
+#   _join "${_delimeter}" "${_list[@]}"
+#
+# More information:
+#   https://stackoverflow.com/a/17841619
+_join() {
+  local _delimiter="${1}"
+  shift
+  printf "%s" "${1}"
+  shift
+  printf "%s" "${@/#/${_delimiter}}" | tr -d '[:space:]'
+}
+
+# _blank()
+#
+# Usage:
+#   _blank <argument>
+#
+# Exit / Error Status:
+#   0 (success, true)  If <argument> is not present or null.
+#   1 (error,  false)  If <argument> is present and not null.
+_blank() {
+  [[ -z "${1:-}" ]]
+}
+
+# _present()
+#
+# Usage:
+#   _present <argument>
+#
+# Exit / Error Status:
+#   0 (success, true)  If <argument> is present and not null.
+#   1 (error,  false)  If <argument> is not present or null.
+_present() {
+  [[ -n "${1:-}" ]]
+}
+
+# _interactive_input()
+#
+# Usage:
+#   _interactive_input
+#
+# Exit / Error Status:
+#   0 (success, true)  If the current input is interactive (eg, a shell).
+#   1 (error,  false)  If the current input is stdin / piped input.
+_interactive_input() {
+  [[ -t 0 ]]
+}
+
+# _piped_input()
+#
+# Usage:
+#   _piped_input
+#
+# Exit / Error Status:
+#   0 (success, true)  If the current input is stdin / piped input.
+#   1 (error,  false)  If the current input is interactive (eg, a shell).
+_piped_input() {
+  ! _interactive_input
+}
+
+# exists_but_not_writable() {
+#
+_exists_but_not_writable() {
+  [[ -e "$1" ]] && ! [[ -r "$1" && -w "$1" && -x "$1" ]]
+}
+
+# _get_local_directory()
+#
+_get_local_directory() {
+  cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P
+}
+
+###############################################################################
+# _download_from()
+#
+# Usage:
+#   _download_from <url> [<outfile>]
+#
+# Description:
+#   Download the file at <url> and print to standard output or <outfile>, if
+#   present. Uses `curl` if available, falling back to `wget`. Messages from
+#   `curl` and `wget` are suppressed.
+#
+# Exit / Error Status:
+#   0 (success, true)  If the download is successful.
+#   1 (error,  false)  If there was an error.
+#
+# Examples:
+#   # Download and stream to standard output.
+#   _download_from "https://example.com" | less
+#
+#   # Download to outfile with error handling.
+#   if ! _download_from "https://example.com/example.pdf" /path/to/example.pdf
+#   then
+#     printf "Download error.\\n"
+#     exit 1
+#   fi
+_download_from() {
+  local _downloaded=0
+  local _target_path="${2:-}"
+  local _timeout=15
+  local _url="${1:-}"
+
+  if [[ -z "${_url}" ]] ||
+     [[ ! "${_url}" =~ ^https\:|^http\:|^file\:|^ftp\:|^sftp\: ]]
+  then
+    return 1
+  fi
+
+  if [[ -n "${_target_path}" ]]
+  then
+    if hash "curl" 2>/dev/null
+    then
+      curl                              \
+        --silent                        \
+        --location                      \
+        --connect-timeout "${_timeout}" \
+        "${_url}"                       \
+        --output "${_target_path}"      \
+        && _downloaded=1
+    elif hash "wget" 2>/dev/null
+    then
+      wget                              \
+        --quiet                         \
+        --connect-timeout="${_timeout}" \
+        --dns-timeout="${_timeout}"     \
+        -O "${_target_path}"            \
+        "${_url}"                       \
+        2>/dev/null                     \
+        && _downloaded=1
+    fi
+  else
+    if hash "curl" 2>/dev/null
+    then
+      curl                              \
+        --silent                        \
+        --location                      \
+        --connect-timeout "${_timeout}" \
+        "${_url}"                       \
+        && _downloaded=1
+    elif hash "wget" 2>/dev/null
+    then
+      wget                              \
+        --quiet                         \
+        --connect-timeout="${_timeout}" \
+        --dns-timeout="${_timeout}"     \
+        -O -                            \
+        "${_url}"                       \
+        2>/dev/null                     \
+        && _downloaded=1
+    fi
+  fi
+
+  if ! ((_downloaded))
+  then
+    return 1
+  fi
+}
+
+###############################################################################
+# describe
+###############################################################################
+
+# Set or print a description for a specified subcommand or function <name>. The
+# <description> text can be passed as the second argument or as standard input.
+#
+# To make the <description> text available to other functions, `describe()`
+# assigns the text to a variable with the format `$___describe_<name>`.
+#
+# When the `--get` option is used, the description for <name> is printed, if
+# one has been set.
+#
+# NOTE:
+#
+# The `read` form of assignment is used for a balance of ease of
+# implementation and simplicity. There is an alternative assignment form
+# that could be used here:
+#
+# var="$(cat <<'HEREDOC'
+# some message
+# HEREDOC
+# )
+#
+# However, this form appears to require trailing space after backslases to
+# preserve newlines, which is unexpected. Using `read` simply requires
+# escaping backslashes, which is more common.
+describe() {
+  _debug printf "describe() \${*}: %s\\n" "$@"
+  [[ -z "${1:-}" ]] && _exit_1 printf "describe(): <name> required.\\n"
+
+  if [[ "${1}" == "--get" ]]
+  then # get ------------------------------------------------------------------
+    [[ -z "${2:-}" ]] &&
+      _exit_1 printf "describe(): <description> required.\\n"
+
+    local _name="${2:-}"
+    local _describe_var="___describe_${_name}"
+
+    if [[ -n "${!_describe_var:-}" ]]
+    then
+      printf "%s\\n" "${!_describe_var}"
+    else
+      printf "No additional information for \`%s\`\\n" "${_name}"
+    fi
+  else # set ------------------------------------------------------------------
+    if [[ -n "${2:-}" ]]
+    then # argument is present
+      read -r -d '' "___describe_${1}" <<HEREDOC
+${2}
+HEREDOC
+    else # no argument is present, so assume piped input
+      # `read` exits with non-zero status when a delimeter is not found, so
+      # avoid errors by ending statement with `|| true`.
+      read -r -d '' "___describe_${1}" || true
+    fi
+  fi
+}
+
+# Normalize Options ###########################################################
+
+# Source:
+#   https://github.com/e36freak/templates/blob/master/options
+
+# Iterate over options, breaking -ab into -a -b and --foo=bar into --foo bar
+# also turns -- into --endopts to avoid issues with things like '-o-', the '-'
+# should not indicate the end of options, but be an invalid option (or the
+# argument to the option, such as wget -qO-)
+unset options
+# while the number of arguments is greater than 0
+while ((${#}))
+do
+  case "${1}" in
+    # if option is of type -ab
+    -[!-]?*)
+      # loop over each character starting with the second
+      for ((i=1; i<${#1}; i++))
+      do
+        # extract 1 character from position 'i'
+        c="${1:i:1}"
+        # add current char to options
+        options+=("-${c}")
+      done
+      ;;
+    # if option is of type --foo=bar, split on first '='
+    --?*=*)
+      options+=("${1%%=*}" "${1#*=}")
+      ;;
+    # end of options, stop breaking them up
+    --)
+      options+=(--endopts)
+      shift
+      options+=("${@}")
+      break
+      ;;
+    # otherwise, nothing special
+    *)
+      options+=("${1}")
+      ;;
+  esac
+
+  shift
+done
+# set new positional parameters to altered options. Set default to blank.
+set -- "${options[@]:-}"
+unset options
+
+# Parse Options ###############################################################
+
+_SUBCOMMAND=""
+_SUBCOMMAND_ARGUMENTS=()
+_USE_DEBUG=0
+
+while ((${#}))
+do
+  __opt="${1}"
+
+  shift
+
+  case "${__opt}" in
+    -h|--help)
+      _SUBCOMMAND="help"
+      ;;
+    --version)
+      _SUBCOMMAND="version"
+      ;;
+    --debug)
+      _USE_DEBUG=1
+      ;;
+    *)
+      # The first non-option argument is assumed to be the subcommand name.
+      # All subsequent arguments are added to $_SUBCOMMAND_ARGUMENTS.
+      if [[ -n "${_SUBCOMMAND}" ]]
+      then
+        _SUBCOMMAND_ARGUMENTS+=("${__opt}")
+      else
+        _SUBCOMMAND="${__opt}"
+      fi
+      ;;
+  esac
+done
+
+###############################################################################
+# Main
+###############################################################################
+
+# Declare the $_DEFINED_SUBCOMMANDS array.
+_DEFINED_SUBCOMMANDS=()
+
+# _main()
+#
+# Usage:
+#   _main
+#
+# Description:
+#   The primary function for starting the program.
+#
+#   NOTE: must be called at end of program after all subcommands are defined.
+
+_main() {
+  if [ -z "${BASH_VERSION:-}" ]; then
+    _exit_1 echo "Bash is required to interpret this script."
+  fi
+  # If $_SUBCOMMAND is blank, then set to `$DEFAULT_SUBCOMMAND`
+  if [[ -z "${_SUBCOMMAND}" ]]
+  then
+    _SUBCOMMAND="${DEFAULT_SUBCOMMAND}"
+  fi
+
+  for __name in $(declare -F)
+  do
+    # Each element has the format `declare -f function_name`, so set the name
+    # to only the 'function_name' part of the string.
+    local _function_name
+    _function_name=$(printf "%s" "${__name}" | awk '{ print $3 }')
+
+    if ! { [[ -z "${_function_name:-}"                      ]] ||
+           [[ "${_function_name}" =~ ^_(.*)                 ]] ||
+           [[ "${_function_name}" == "bats_readlinkf"       ]] ||
+           [[ "${_function_name}" == "describe"             ]] ||
+           [[ "${_function_name}" == "shell_session_update" ]]
+    }
+    then
+      _DEFINED_SUBCOMMANDS+=("${_function_name}")
+    fi
+  done
+  # Sort the list of subcommands for display purposes.
+  #  NOTE: `declare -F` returns the function name, so the `awk` command
+  #  removes the `_` from the beginning of the function name.
+
+  # If the subcommand is defined, run it, otherwise return an error.
+  if _contains "${_SUBCOMMAND}" "${_DEFINED_SUBCOMMANDS[@]:-}"
+  then
+    # Pass all comment arguments to the program except for the first ($0).
+    ${_SUBCOMMAND} "${_SUBCOMMAND_ARGUMENTS[@]:-}"
+  else
+    _exit_1 printf "Unknown subcommand: %s\\n" "${_SUBCOMMAND}"
+  fi
+}
+
+###############################################################################
+# Install jwt-cli
+# Will download the binary suitable for the running OS into the directory
+# where this script is located
+#
+# Source: https://github.com/mike-engel/jwt-cli
+###############################################################################
+
+_install_jwt_cli() {
+  # First check OS.
+  local _on_os=
+  local _base_dir=
+  _base_dir=$(_get_local_directory)
+
+  if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux-musl"* || "$OSTYPE" == "freebsd"* ]]; then
+    _on_os="Linux"
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    _on_os="macOS"
+  else
+    _exit_1 echo "jwt-cli is only supported on macOS and Linux."
+  fi
+
+  # Check if directory is writable
+  if [[ ! -w ${_base_dir} ]]
+  then
+    _exit_1 echo "jwt-cli cannot be installed in ${_base_dir} it's not writable."
+  fi
+
+  # If running on Linux
+  local _package_name=
+  local _checksum_name=
+  local _package_version=
+  _package_version="4.0.0"
+
+  if [[ -n ${_on_os} && ${_on_os} == "Linux" ]]
+  then
+    _package_name="jwt-linux.tar.gz"
+    _checksum_name="jwt-linux.sha256"
+  elif [[ -n ${_on_os} && ${_on_os} == "macOS" ]]
+  then
+    _package_name="jwt-macOS.tar.gz"
+    _checksum_name="jwt-macOS.sha256"
+  fi
+
+  # Download the needed binaries
+  if ! _download_from "https://github.com/mike-engel/jwt-cli/releases/download/${_package_version}/${_package_name}" "${_base_dir}/${_package_name}"
+  then
+    _exit_1 echo "Could not download jwt-cli from https://github.com/mike-engel/jwt-cli/releases/download/${_package_version}/${_package_name}"
+  fi
+  # Download the checksum
+  if ! _download_from "https://github.com/mike-engel/jwt-cli/releases/download/${_package_version}/${_checksum_name}" "${_base_dir}/${_checksum_name}"
+  then
+    _exit_1 echo "Could not download jwt-cli checksum from https://github.com/mike-engel/jwt-cli/releases/download/${_package_version}/${_checksum_name}"
+  fi
+  # Verify package integrity
+  shasum --check --status "${_base_dir}/${_checksum_name}" || _exit_1 "Could not verify validity of the downloaded package."
+  # Extract the package content
+  tar -xf "${_base_dir}/${_package_name}"
+  # Cleanup
+  rm -f "${_base_dir}/${_package_name}"
+  rm -f "${_base_dir}/${_checksum_name}"
+}
+
+###############################################################################
+# Default Subcommands
+###############################################################################
+
+# help ########################################################################
+
+describe "help" <<HEREDOC
+Usage:
+  ${_ME} help [<subcommand>]
+
+Description:
+  Display help information for ${_ME} or a specified subcommand.
+HEREDOC
+help() {
+  if [[ "${1:-}" ]]
+  then
+    describe --get "${1}"
+  else
+    cat <<HEREDOC
+* _____ _   *_   _______ *  _      *  *    **   *
+ / ____| |* | | |__   __|  | |  *       *         🦄  *
+| | *__| |_*| | ⭐️ | | ___ | | _____*_ __  *     *
+| | |_ |* __ *|    |*|/ _ \| |/ / _ \ '_ \     *   *
+| |__| | |  | | *  | | (_)*|   <  __/ | | |  *
+ \_____|_|  |_|    |_|\___/|_|\_\___|_| |_|   *
+
+Generate an access token to call GitHub APIs using a GitHub App
+
+Version: ${_VERSION}
+
+Usage:
+  ${_ME} <subcommand> [--subcommand-options] [<arguments>]
+  ${_ME} -h | --help
+  ${_ME} --version
+
+Options:
+  -h --help  Display this help information.
+  --version  Display version information.
+
+Help:
+  ${_ME} help [<subcommand>]
+
+$(subcommands --)
+HEREDOC
+  fi
+}
+
+# subcommands #################################################################
+
+describe "subcommands" <<HEREDOC
+Usage:
+  ${_ME} subcommands [--raw]
+
+Options:
+  --raw  Display the subcommand list without formatting.
+
+Description:
+  Display the list of available subcommands.
+HEREDOC
+subcommands() {
+  if [[ "${1:-}" == "--raw" ]]
+  then
+    printf "%s\\n" "${_DEFINED_SUBCOMMANDS[@]}"
+  else
+    printf "Available subcommands:\\n"
+    printf "  %s\\n" "${_DEFINED_SUBCOMMANDS[@]}"
+  fi
+}
+
+# version #####################################################################
+
+describe "version" <<HEREDOC
+Usage:
+  ${_ME} ( version | --version )
+
+Description:
+  Display the current program version.
+
+  To save you the trouble, the current version is ${_VERSION}
+HEREDOC
+version() {
+  printf "%s\\n" "${_VERSION}"
+}
+
+# revoke ######################################################################
+
+describe "revoke" <<HEREDOC
+Usage:
+  ${_ME} revoke [-t|-h|<options>]
+
+Options:
+  -o <hostname>, --hostname <hostname>  The API URL of GitHub. [default: api.github.com]
+  -t <token>, --token <token>           Access token to revoke. [required]
+
+Description:
+  Revoke the provided access token
+HEREDOC
+revoke() {
+  local _token=
+  local _hostname="api.github.com"
+
+  for __arg in "${@:-}"
+  do
+    case ${__arg} in
+      -t|--token)
+        _token=${2:-}
+        shift
+        shift
+        ;;
+      -o|--hostname)
+        _hostname=${2:-}
+        shift
+        shift
+        ;;
+      -*)
+        _exit_1 printf "Unexpected option: %s\\n" "${__arg}"
+        ;;
+      *)
+    esac
+  done
+
+  if [[ -z "${_token}" ]]
+  then
+    _exit_1 echo "-t | --token <token> is required"
+  fi
+
+  if [[ "${_hostname}" == "api.github.com" ]]
+  then
+
+    # ;-------------------------------------
+    # ; Get installation id from GitHub.com
+    # ;-------------------------------------
+    _api_url="https://${_hostname}"
+
+  else
+    # ;-------------------------------------
+    # ; Get installation id from GHES
+    # ;-------------------------------------
+    _api_url="https://${_hostname}/api/v3"
+
+  fi
+
+  # Revoke the token
+  local _response=
+  _response=$(curl --write-out '%{http_code}' \
+                   --output /dev/null \
+                   --silent \
+                   -X DELETE \
+                   -H "Authorization: Token ""${_token}" \
+                   -H "Accept: application/vnd.github.v3+json" \
+                   "${_api_url}"/installation/token | \
+                   jq)
+
+  if [[ "${_response}" == 204 ]]
+  then
+    echo "${_response}: Token revoked successfully"
+  else
+    echo "${_response}: Failed to revoke token. Maybe it expired already?"
+  fi
+}
+
+
+
+# installations ###############################################################
+
+describe "installations" <<HEREDOC
+Usage:
+  ${_ME} ghtoken installations (--key <key> | -base64_key <key>) --app_id <id> [--duration <minutes>] [--hostname <hostname>] [--install_jwt_cli]
+
+Options:
+  -k <key>, --key <key>                 Path to a PEM-encoded certificate and key. [required]
+  -b <key>, --base64_key <key>          Base64 encoded PEM certificate and key. [optional]
+  -i <id>, --app_id <id>                GitHub App Id. [required]
+  -d <minutes>, --duration <minutes>    The expiration duration of the JWT in minutes. [default: 10]
+  -o <hostname>, --hostname <hostname>  The API URL of GitHub. [default: api.github.com]
+  -j, --install_jwt_cli                 Install jwt-cli (dependency) on the current system. [optional]
+
+Description:
+  Generates a JWT signed with the supplied key and fetches the list of installations
+HEREDOC
+installations() {
+  local _key=
+  local _app_id=
+  local _duration=10
+  local _base64_key=
+  local _jwt_cli_path=
+  local _install_jwt_cli_q=0
+  local _hostname="api.github.com"
+
+  for __arg in "${@:-}"
+  do
+    case ${__arg} in
+      -k|--key)
+        _key=${2:-}
+        shift
+        shift
+        ;;
+      -b|--base64_key)
+        _base64_key=${2:-}
+        shift
+        shift
+        ;;
+      -d|--duration)
+        _duration=${2:-}
+        shift
+        shift
+        ;;
+      -o|--hostname)
+        _hostname=${2:-}
+        shift
+        shift
+        ;;
+      -i|--app_id)
+        _app_id=${2:-}
+        shift
+        shift
+        ;;
+      -j|--install_jwt_cli)
+        _install_jwt_cli_q=1
+        shift
+        ;;
+      -*)
+        _exit_1 printf "Unexpected option: %s\\n" "${__arg}"
+        ;;
+      *)
+    esac
+  done
+
+  if [[ ! "${_duration}" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-d | --duration can only be a number"
+  elif [[ _duration -gt 10 ]]
+  then
+    _exit_1 echo "-d | --duration cannot be more than 10 minutes"
+  # If neither the key nor the base64_key string have been provided, error
+  elif [[ -z "${_key}" && -z "${_base64_key}" ]]
+  then
+    _exit_1 echo "-k | --key <key> OR -b | --base64_key is required"
+  # If the -k | --key has been provided and the file exists and is readable
+  elif [[ -n "${_key}" ]] && [[ ! -e ${_key} || ! -r ${_key} ]]
+  then
+    _exit_1 echo "-k | --key <key> not found or is not readable"
+  elif [[ -z "${_app_id}" ]]
+  then
+    _exit_1 echo "-i | --app_id <id> is required"
+  elif [[ ! "${_app_id}" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-i | --app_id <id> can only be a number"
+  fi
+
+  # ;------------------------
+  # ; Install jwt-cli
+  # ;------------------------
+
+  if [[ -n "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 1 ]]
+  then
+    # Set the path for jwt to be the local directory
+    _jwt_cli_path=$(_get_local_directory)"/jwt"
+    _install_jwt_cli
+  fi
+
+  # ;-----------------------------
+  # ; Check if dependencies exist
+  # ;-----------------------------
+
+  if ! _command_exists jwt && ! _command_exists "${_jwt_cli_path}"
+  then
+    _exit_1 echo "jwt-cli is required"
+  elif _command_exists jwt && [[ -n "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 0 ]]
+  then
+    # Get the path for the existing jwt binaries
+    _jwt_cli_path=$(which jwt)
+  fi
+
+  # ;------------------------
+  # ; Generate the JWT
+  # ;------------------------
+
+  # If the key was provided as a base64 encoded string we need to decode it
+  # and store it in a temporary
+  if [[ -n "${_base64_key}" ]]
+  then
+    # Make a temporary file to contain the secret
+    # this file will be deleted when the script exists, crashes or is stopped
+    _key=$(printf "%s.pem" "$(mktemp)")
+    printf "%s" "$(echo "${_base64_key}" | base64 -d)" > "${_key}"
+    # when the script exits or is stopped with ctrl-C the file is
+    # still removed.
+    trap 'rm -f -- '"$_key" 0 2 3 15 INT EXIT
+  fi
+
+  local _jwt
+  _jwt=$("${_jwt_cli_path}" encode -A RS256 \
+                    -e $(( $(date +%s) + $(( _duration * 60 )) )) \
+                    -i "${_app_id}" \
+                    -P iat=$(( $(date +%s) - 60 )) \
+                    -S @"${_key}")
+
+  local _app_token=
+  local _api_url=
+
+  if [[ "${_hostname}" == "api.github.com" ]]
+  then
+
+    # ;-------------------------------------
+    # ; Get installation id from GitHub.com
+    # ;-------------------------------------
+    _api_url="https://${_hostname}"
+
+  else
+    # ;-------------------------------------
+    # ; Get installation id from GHES
+    # ;-------------------------------------
+    _api_url="https://${_hostname}/api/v3"
+
+  fi
+
+  # Fetch the installation_ids
+  local _installations
+  _installations=$(curl -s \
+                          -H "Authorization: Bearer ""${_jwt}" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "${_api_url}"/app/installations | \
+                          jq)
+
+  echo "${_installations}"
+}
+
+# generate ####################################################################
+
+describe "generate" <<HEREDOC
+Usage:
+  ${_ME} generate (--key <key> | --base64_key <key>) --app_id <id> [--duration <minutes>] [--installation_id <id>] [--hostname <hostname>] [--install_jwt_cli]
+
+Options:
+  -k <key>, --key <key>                 Path to a PEM-encoded certificate and key. [required]
+  -b <key>, --base64_key <key>          Base64 encoded PEM certificate and key. [optional]
+  -i <id>, --app_id <id>                GitHub App Id. [required]
+  -d <minutes>, --duration <minutes>    The expiration duration of the JWT in minutes. [default: 10]
+  -o <hostname>, --hostname <hostname>  The API URL of GitHub. [default: api.github.com]
+  -j, --install_jwt_cli                 Install jwt-cli (dependency) on the current system. [optional]
+  -l <id>, --installation_id <id>       GitHub App installation id. [default: latest id]
+
+Description:
+  Generates a JWT signed with the supplied key and fetches an
+  installation token
+HEREDOC
+generate() {
+  local _key=
+  local _app_id=
+  local _duration=10
+  local _base64_key=
+  local _jwt_cli_path=
+  local _installation_id=
+  local _install_jwt_cli_q=0
+  local _hostname="api.github.com"
+
+  for __arg in "${@:-}"
+  do
+    case ${__arg} in
+      -k|--key)
+        _key=${2:-}
+        shift
+        shift
+        ;;
+      -b|--base64_key)
+        _base64_key=${2:-}
+        shift
+        shift
+        ;;
+      -d|--duration)
+        _duration=${2:-}
+        shift
+        shift
+        ;;
+      -o|--hostname)
+        _hostname=${2:-}
+        shift
+        shift
+        ;;
+      -i|--app_id)
+        _app_id=${2:-}
+        shift
+        shift
+        ;;
+      -l|--installation_id)
+        _installation_id=${2:-}
+        shift
+        shift
+        ;;
+      -j|--install_jwt_cli)
+        _install_jwt_cli_q=1
+        shift
+        ;;
+      -*)
+        _exit_1 printf "Unexpected option: %s\\n" "${__arg}"
+        ;;
+      *)
+    esac
+  done
+
+  if [[ ! "${_duration}" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-d | --duration can only be a number"
+  elif [[ _duration -gt 10 ]]
+  then
+    _exit_1 echo "-d | --duration cannot be more than 10 minutes"
+  # If neither the key nor the base64_key string have been provided, error
+  elif [[ -z "${_key}" && -z "${_base64_key}" ]]
+  then
+    _exit_1 echo "-k | --key <key> OR -b | --base64_key is required"
+  # If the -k | --key has been provided and the file exists and is readable
+  elif [[ -n "${_key}" ]] && [[ ! -e ${_key} || ! -r ${_key} ]]
+  then
+    _exit_1 echo "-k | --key <key> not found or is not readable"
+  elif [[ -z "${_app_id}" ]]
+  then
+    _exit_1 echo "-i | --app_id <id> is required"
+  elif [[ ! "${_app_id}" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-i | --app_id <id> can only be a number"
+  elif [[ -n "${_installation_id}" && ! "${_installation_id}" == ?(-)+([0-9]) ]]
+  then
+    _exit_1 echo "-l | --installation_id <id> can only be a number"
+  fi
+
+  # ;------------------------
+  # ; Install jwt-cli
+  # ;------------------------
+
+  if [[ -n "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 1 ]]
+  then
+    # Set the path for jwt to be the local directory
+    _jwt_cli_path=$(_get_local_directory)"/jwt"
+    _install_jwt_cli
+  fi
+
+  # ;-----------------------------
+  # ; Check if dependencies exist
+  # ;-----------------------------
+
+  if ! _command_exists jwt && ! _command_exists "${_jwt_cli_path}"
+  then
+    _exit_1 echo "jwt-cli is required"
+  elif _command_exists jwt && [[ -n "${_install_jwt_cli_q}" && ${_install_jwt_cli_q} -eq 0 ]]
+  then
+    # Get the path for the existing jwt binaries
+    _jwt_cli_path=$(which jwt)
+  fi
+
+  # ;------------------------
+  # ; Generate the JWT
+  # ;------------------------
+
+  # If the key was provided as a base64 encoded string we need to decode it
+  # and store it in a temporary
+  if [[ -n "${_base64_key}" ]]
+  then
+    # Make a temporary file to contain the secret
+    # this file will be deleted when the script exists, crashes or is stopped
+    _key=$(printf "%s.pem" "$(mktemp)")
+    printf "%s" "$(echo "${_base64_key}" | base64 -d)" > "${_key}"
+    # when the script exits or is stopped with ctrl-C the file is
+    # still removed.
+    trap 'rm -f -- '"$_key" 0 2 3 15 INT EXIT
+  fi
+
+  local _jwt
+  _jwt=$("${_jwt_cli_path}" encode -A RS256 \
+                    -e $(( $(date +%s) + $(( _duration * 60 )) )) \
+                    -i "${_app_id}" \
+                    -P iat=$(( $(date +%s) - 60 )) \
+                    -S @"${_key}")
+
+  local _app_token=
+  local _api_url=
+
+  if [[ "${_hostname}" == "api.github.com" ]]
+  then
+
+    # ;-------------------------------------
+    # ; Get installation id from GitHub.com
+    # ;-------------------------------------
+    _api_url="https://${_hostname}"
+
+  else
+    # ;-------------------------------------
+    # ; Get installation id from GHES
+    # ;-------------------------------------
+    _api_url="https://${_hostname}/api/v3"
+
+  fi
+
+  # Fetch the latest installation_id only if it wasn't supplied
+  if [[ -z "${_installation_id}" ]]
+  then
+    _installation_id=$(curl -s \
+                            -H "Authorization: Bearer ""${_jwt}" \
+                            -H "Accept: application/vnd.github.v3+json" \
+                            "${_api_url}"/app/installations | \
+                            jq -r 'try .[0].id catch "failed"')
+
+    if [[ "${_installation_id}" == "failed" ]]
+    then
+      _exit_1 echo "failed to fetch installation id"
+    fi
+  fi
+
+  # Create the installation access token
+  _app_token=$(curl -s \
+                    -X POST \
+                    -H "Authorization: Bearer ""${_jwt}" \
+                    -H "Accept: application/vnd.github.v3+json" \
+                    "${_api_url}"/app/installations/"${_installation_id}"/access_tokens | \
+                    jq -r 'try {"token": .token, "expires_at": .expires_at} catch "failed"')
+
+  if [[ "${_app_token}" == "failed" ]]
+  then
+    _exit_1 echo "failed to create app token"
+  fi
+
+  echo "${_app_token}"
+}
+
+###############################################################################
+# Run Program
+###############################################################################
+
+# Call the `_main` function after everything has been defined.
+_main
