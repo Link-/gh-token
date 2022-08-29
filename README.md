@@ -58,7 +58,7 @@ Download `ghtoken` [from the main branch](https://github.com/Link-/gh-token/blob
 # Download a file, name it ghtoken then do a checksum
 wget -O ghtoken \
     https://raw.githubusercontent.com/Link-/gh-token/main/gh-token && \
-    echo "11630050d3859d7fcaa42fad08c184cfe2ceeb3887779dc76394c4dba80903ef  ghtoken" | \
+    echo "6a6b111355432e08dd60ac0da148e489cdb0323a059ee8cbe624fd37bf2572ae  ghtoken" | \
     shasum -c - && \
     chmod u+x ./ghtoken
 ```
@@ -72,7 +72,7 @@ wget -O ghtoken \
 curl -o ghtoken \
      -O -L -C  - \
      https://raw.githubusercontent.com/Link-/gh-token/main/gh-token && \
-     echo "11630050d3859d7fcaa42fad08c184cfe2ceeb3887779dc76394c4dba80903ef  ghtoken" | \
+     echo "6a6b111355432e08dd60ac0da148e489cdb0323a059ee8cbe624fd37bf2572ae  ghtoken" | \
      shasum -c - && \
      chmod u+x ./ghtoken
 ```
@@ -455,3 +455,11 @@ _These are not endorsements, just a listing of similar art work_
 - [workflow-application-token-action](https://github.com/peter-murray/workflow-application-token-action)
 - [action-github-app-token](https://github.com/getsentry/action-github-app-token)
 - [github-app-token-generator](https://github.com/navikt/github-app-token-generator)
+
+## Contributing
+
+When modifying `ghtoken`, make sure to update the checksums listed in the README in the [Installation](#installation) section. You can retrieve the checksum by running:
+
+```sh
+shasum -a 256 ghtoken
+```
