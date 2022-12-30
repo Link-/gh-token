@@ -16,6 +16,8 @@
 [![ghtoken size](https://img.shields.io/github/size/link-/gh-token/gh-token?style=flat-square)](ghtoken) [![License](https://img.shields.io/github/license/link-/gh-token?style=flat-square)](LICENSE) ![platforms supported](https://img.shields.io/static/v1?style=flat-square&label=platform&message=macos%20%7C%20linux)
 <!-- markdownlint-restore -->
 
+
+
 [Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account.
 Installation tokens expire 1 hour from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
 
@@ -30,7 +32,7 @@ You can use this access token to make pretty much any REST or GraphQL API call t
 
 </details>
 
-## Why?
+## Why does this project exist?
 
 In order to use GitHub's [REST](https://docs.github.com/en/rest) or [GraphQL](https://docs.github.com/en/graphql) APIs you will need either a [Personal Access Token](https://docs.github.com/en/developers/apps/about-apps#personal-access-tokens) (PAT) or a [GitHub App](https://docs.github.com/en/developers/apps/about-apps#about-github-apps).
 
@@ -42,59 +44,18 @@ In order to use GitHub's [REST](https://docs.github.com/en/rest) or [GraphQL](ht
 
 With an access token generated with a GitHub App you don't have to worry about the concerns above. These tokens have a limited scope and lifetime. Just make sure you handle the token safely (avoid leaking). In the worst case scenario, the token will expire in 1 hour from creation time.
 
-## Installation
+## How to use this project
 
-### Prerequisites
-
-- `Bash 5.x+`
-- `jq`
-- `shasum`
-
-Download `ghtoken` [from the main branch](https://github.com/Link-/gh-token/blob/main/gh-token)
-
-### wget
-
-```sh
-# Download a file, name it ghtoken then do a checksum
-wget -O ghtoken \
-    https://raw.githubusercontent.com/Link-/gh-token/main/gh-token && \
-    echo "6a6b111355432e08dd60ac0da148e489cdb0323a059ee8cbe624fd37bf2572ae  ghtoken" | \
-    shasum -c - && \
-    chmod u+x ./ghtoken
-```
-
-### curl
-
-```sh
-# Download a file, name it ghtoken following [L]ocation redirects, and
-# automatically [C]ontinuing (resuming) a previous file transfer then
-# do a checksum
-curl -o ghtoken \
-     -O -L -C  - \
-     https://raw.githubusercontent.com/Link-/gh-token/main/gh-token && \
-     echo "6a6b111355432e08dd60ac0da148e489cdb0323a059ee8cbe624fd37bf2572ae  ghtoken" | \
-     shasum -c - && \
-     chmod u+x ./ghtoken
-```
-
-### gh cli extension
-
-You can install `ghtoken` as a [gh cli](https://github.com/cli/cli) extension!
-
-```sh
-gh extensions install Link-/gh-token
-
-# Verify installation
-gh token
-```
-
-All the commands and parameters remain the same, the only different is you now can use `gh token` instead of `ghtoken`.
+### Binary
+TODO: Add binary download links
+### Docker
+TODO: Add docker image
 
 ### Creating a GitHub App
 
 Follow [these steps](https://docs.github.com/en/developers/apps/creating-a-github-app)
 
-## Usage
+### CLI
 
 Compatible with [GitHub Enterprise Server](https://github.com/enterprise).
 
@@ -455,3 +416,9 @@ _These are not endorsements, just a listing of similar art work_
 - [workflow-application-token-action](https://github.com/peter-murray/workflow-application-token-action)
 - [action-github-app-token](https://github.com/getsentry/action-github-app-token)
 - [github-app-token-generator](https://github.com/navikt/github-app-token-generator)
+
+
+
+## Legacy
+
+This tool has been converted to work in Go instead of Bash. [More info](docs/explanation/legacy-bash.md)

@@ -62,3 +62,6 @@ tags
 
 ### Project files
 jwt
+
+### Credentials
+*.pem
