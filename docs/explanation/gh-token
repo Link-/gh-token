@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# NOTE: THIS SCRIPT IS BEING DEPRECATED IN FAVOR OF THE `gh-token` Golang binary.
+
 if (( ${BASH_VERSION%%.*} < 5 )); then
   echo "Bash is too old: ${BASH_VERSION}; Bash 5.+ is required"
   exit 1
