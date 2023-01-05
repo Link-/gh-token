@@ -19,7 +19,7 @@ var cli struct {
 
 func main() {
 
-	// Validate the CLI structure and pass down the logger
+	// Validate the CLI structure
 	ctx := kong.Parse(&cli,
 		kong.Name("gh-token"),
 		kong.Description("Generate an access token to call GitHub APIs using a GitHub App."),
