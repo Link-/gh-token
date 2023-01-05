@@ -32,6 +32,6 @@ logger.Panic("I'm bailing.")
 
 ## Logging Types
 
-The support logging types are either console or JSON. The default is console.
+The supported logging types are either console or JSON. The default is console.
 
 See [Debug Logging](../how-to/debug-logging.md) for more information on how to use the logging types.
