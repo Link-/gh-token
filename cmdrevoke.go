@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/google/go-github/v49/github"
 	"golang.org/x/oauth2"
@@ -10,11 +11,10 @@ import (
 // Implementation of the "Revoke" command
 type RevokeCmd struct {
 	// Arguments
-	// AppID int64  `arg:"" help:"Github App ID." type:"int" aliases:"app_id" env:"GHTOKEN_APP_ID" required:"true"`
 	Token string `arg:"" help:"The token to auth as for revocation." type:"string" aliases:"token" env:"GHTOKEN_TOKEN" required:"true"`
 
 	// Options
-	GithubURL string `help:"Github API URL" default:"https://api.github.com" env:"GHTOKEN_GITHUB_URL"`
+	GithubURL string `help:"Github API URL" type:"url" default:"https://api.github.com" env:"GHTOKEN_GITHUB_URL"`
 }
 
 func (cmd *RevokeCmd) Run() error {
@@ -30,7 +30,18 @@ func (cmd *RevokeCmd) Run() error {
 	tc := oauth2.NewClient(ctx, ts)
 
 	client := github.NewClient(tc)
-	resp, err := client.Apps.RevokeInstallationToken(ctx) // TODO: This is not working with Github Enterprise yet.
+	u, err := url.Parse(cmd.GithubURL + "/")
+	if err != nil {
+		return err
+	}
+	client.BaseURL = u
+	resp, err := client.Apps.RevokeInstallationToken(ctx)
+	if err != nil && resp != nil {
+		if resp.StatusCode == 401 {
+			logger.Errorf("Token revocation failed with status code %v. This is likely due to the token being invalid, this could be due to expiration or perhaps it was already successfully revoked.", resp.StatusCode)
+			return nil
+		}
+	}
 	if err != nil {
 		return err
 	}
