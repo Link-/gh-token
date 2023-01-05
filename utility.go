@@ -10,9 +10,7 @@ func NewLogger(level string, logType string) *logrus.Logger {
 	case "json":
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	case "console":
-		logger.SetFormatter(&logrus.TextFormatter{
-			FullTimestamp: true,
-		})
+		logger.SetFormatter(&logrus.TextFormatter{})
 	}
 
 	switch level {
