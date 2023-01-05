@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/bradleyfalzon/ghinstallation/v2"
-	"github.com/google/go-github/v45/github"
 )
 
 // Implementation of the "Generate" command
@@ -39,7 +39,7 @@ func (cmd *GenerateCmd) Run() error {
 		return err
 	}
 
-	token, resp, err := client.Apps.CreateInstallationToken(context.Background(), cmd.InstallID, &github.InstallationTokenOptions{})
+	token, resp, err := client.Apps.CreateInstallationToken(context.Background(), cmd.InstallID, nil)
 	if resp != nil {
 		logger.Debug(resp.Status)
 	}
@@ -47,7 +47,12 @@ func (cmd *GenerateCmd) Run() error {
 		return err
 	}
 
-	println(token.GetToken())
+	t := token.GetToken()
+	if t == "" {
+		return fmt.Errorf("token is empty")
+	}
+
+	println(t)
 
 	return nil
 }
