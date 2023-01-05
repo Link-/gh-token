@@ -1,19 +1,17 @@
 package main
 
-import "fmt"
-
 // Implementation of the "installations" command
 type InstallationsCmd struct {
-	// Flags
-	KeyFile string `help:"Path to the private key file (pem)." type:"existingfile" aliases:"key"`
-	KeyBase string `help:"Base64 encoded private key." type:"string" aliases:"base64_key"`
 
 	// Arguments
-	AppID int `arg:"" help:"Github App ID." type:"int" aliases:"app_id" required:"true"`
+	AppID   int    `arg:"" help:"Github App ID." type:"int" aliases:"app_id" env:"GHTOKEN_APP_ID" required:"true"`
+	KeyFile string `arg:"" help:"Path to the private key file (pem)." type:"existingfile" aliases:"key" env:"GHTOKEN_KEY_FILE" required:"true"`
 }
 
-func (cmd *InstallationsCmd) Run(ctx *Context) error {
-	// ...
-	fmt.Println("installations")
+func (cmd *InstallationsCmd) Run() error {
+	// Build the logger and use it for any output
+	logger := NewLogger(cli.Logging.Level, cli.Logging.Type)
+	logger.Debugf("InstallationsCmd called with AppID %v, KeyFile %v", cmd.AppID, cmd.KeyFile)
+
 	return nil
 }
