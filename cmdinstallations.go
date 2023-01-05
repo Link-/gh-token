@@ -15,6 +15,9 @@ type InstallationsCmd struct {
 	// Arguments
 	AppID   int64  `arg:"" help:"Github App ID." type:"int" aliases:"app_id" env:"GHTOKEN_APP_ID" required:"true"`
 	KeyFile string `arg:"" help:"Path to the private key file (pem)." type:"existingfile" aliases:"key" env:"GHTOKEN_KEY_FILE" required:"true"`
+
+	// Options
+	GithubURL string `help:"Github API URL" default:"https://api.github.com" env:"GHTOKEN_GITHUB_URL"`
 }
 
 func (cmd *InstallationsCmd) Run() error {
@@ -29,8 +32,8 @@ func (cmd *InstallationsCmd) Run() error {
 		return err
 	}
 
-	logger.Debug("InstallationsCmd: Checking to see whether we're using Github Enterprise or Github.com client")
-	githubTransport.BaseURL = cli.GithubURL
+	logger.Debug("InstallationsCmd: Checking to see whether we're targeting Github Enterprise or Github.com")
+	githubTransport.BaseURL = cmd.GithubURL
 	var client *github.Client
 	if githubTransport.BaseURL == "https://api.github.com" {
 		// Build the default Github client if we're using the default URL
@@ -47,8 +50,10 @@ func (cmd *InstallationsCmd) Run() error {
 
 	// List all installations for the provided AppId
 	logger.Debug("InstallationsCmd: Listing all installations")
-	// TODO: Handle pagination as an edge case
-	installations, resp, err := client.Apps.ListInstallations(context.Background(), &github.ListOptions{})
+	// TODO: Handle pagination as an edge case, for now we'll just return a single page of 100.
+	installations, resp, err := client.Apps.ListInstallations(context.Background(), &github.ListOptions{
+		PerPage: 100,
+	})
 	if resp != nil {
 		logger.Debug(resp.Status)
 		if resp.StatusCode != 200 {

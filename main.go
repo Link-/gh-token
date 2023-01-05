@@ -12,8 +12,6 @@ var cli struct {
 		Type  string `enum:"json,console" default:"console"`
 	} `embed:"" prefix:"logging."`
 
-	GithubURL string `help:"Github API URL" default:"https://api.github.com" env:"GHTOKEN_GITHUB_URL"`
-
 	Installations InstallationsCmd `cmd:"" help:"Find our Github app installations"`
 	Generate      GenerateCmd      `cmd:"" help:"Generate a new Github app token"`
 	Revoke        RevokeCmd        `cmd:"" help:"Revoke a Github app token"`
