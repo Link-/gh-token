@@ -12,6 +12,12 @@ var cli struct {
 		Type  string `enum:"json,console" default:"console"`
 	} `embed:"" prefix:"logging."`
 
+	TlsConfig struct {
+		HandshakeTimeout   int    `help:"Timeout in seconds" default:"10" env:"GHTOKEN_TIMEOUT"`
+		InsecureSkipVerify bool   `help:"Allow insecure connections" default:"false" env:"GHTOKEN_INSECURE_SKIP_VERIFY"`
+		Proxy              string `help:"Proxy URL" default:"" env:"GHTOKEN_PROXY"`
+	} `embed:"" prefix:"tlsconfig."`
+
 	Installations InstallationsCmd `cmd:"" help:"Find our Github app installations"`
 	Generate      GenerateCmd      `cmd:"" help:"Generate a new Github app token"`
 	Revoke        RevokeCmd        `cmd:"" help:"Revoke a Github app token"`
