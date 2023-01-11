@@ -9,13 +9,8 @@ FROM debian:11.6 as final
 
 WORKDIR /app
 
-COPY --from=builder /src/gh-token /app/ghtoken 
+COPY --from=builder /src/gh-token /app/gh-token 
 
-# Least privilege docker user
-RUN groupadd --gid 15555 ghtoken \ 
-    && useradd --uid 15555 --gid 15555 -ms /bin/false ghtoken\
-    && chown -R ghtoken:ghtoken /app
 ENV PATH "$PATH:/app"
-USER ghtoken
 
 CMD ["/app/ghtoken"]
