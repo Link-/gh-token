@@ -67,3 +67,6 @@ jwt
 
 ### Credentials
 *.pem
+
+### Codespaces
+oryxBuildBinary
