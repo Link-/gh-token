@@ -65,6 +65,7 @@ func Generate(c *cli.Context) error {
 		if !silent {
 			fmt.Println(jsonWebToken)
 		}
+
 		return nil
 	}
 
