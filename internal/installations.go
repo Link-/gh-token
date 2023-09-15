@@ -68,8 +68,8 @@ func Installations(c *cli.Context) error {
 }
 
 func listInstallations(hostname, jwt string) (*[]github.Installation, error) {
-	var responses []github.Installation
 	page := 0
+	var responses []github.Installation
 	for {
 		endpoint := fmt.Sprintf("https://%s/app/installations?per_page=100&page=%d", hostname, page)
 		req, err := http.NewRequest("GET", endpoint, nil)
