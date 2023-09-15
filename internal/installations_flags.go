@@ -9,7 +9,7 @@ func InstallationsFlags() []cli.Flag {
 			Name:     "app-id",
 			Usage:    "GitHub App ID",
 			Required: true,
-			Aliases:  []string{"a"},
+			Aliases:  []string{"i", "app_id"},
 		},
 		&cli.StringFlag{
 			Name:     "key",
@@ -18,10 +18,10 @@ func InstallationsFlags() []cli.Flag {
 			Aliases:  []string{"k"},
 		},
 		&cli.StringFlag{
-			Name:     "key-base64",
+			Name:     "base64-key",
 			Usage:    "A base64 encoded private key",
 			Required: false,
-			Aliases:  []string{"b"},
+			Aliases:  []string{"b", "base64_key"},
 		},
 		&cli.StringFlag{
 			Name:     "hostname",

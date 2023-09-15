@@ -9,13 +9,13 @@ func GenerateFlags() []cli.Flag {
 			Name:     "app-id",
 			Usage:    "GitHub App ID",
 			Required: true,
-			Aliases:  []string{"a"},
+			Aliases:  []string{"i", "app_id"},
 		},
 		&cli.StringFlag{
 			Name:     "installation-id",
 			Usage:    "GitHub App installation ID. Defaults to the first installation returned by the GitHub API if not specified",
 			Required: false,
-			Aliases:  []string{"i"},
+			Aliases:  []string{"l", "installation_id"},
 		},
 		&cli.StringFlag{
 			Name:     "key",
@@ -24,10 +24,10 @@ func GenerateFlags() []cli.Flag {
 			Aliases:  []string{"k"},
 		},
 		&cli.StringFlag{
-			Name:     "key-base64",
+			Name:     "base64-key",
 			Usage:    "A base64 encoded private key",
 			Required: false,
-			Aliases:  []string{"b"},
+			Aliases:  []string{"b", "base64_key"},
 		},
 		&cli.StringFlag{
 			Name:     "hostname",
@@ -50,10 +50,10 @@ func GenerateFlags() []cli.Flag {
 			Value:    false,
 		},
 		&cli.IntFlag{
-			Name:     "jwt-expiry",
+			Name:     "duration",
 			Usage:    "The expiry time of the JWT in minutes up to a maximum value of 10, useful when using the --jwt flag",
 			Required: false,
-			Aliases:  []string{"e"},
+			Aliases:  []string{"d"},
 			Value:    1,
 		},
 		&cli.BoolFlag{
