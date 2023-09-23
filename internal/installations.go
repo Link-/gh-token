@@ -62,6 +62,11 @@ func Installations(c *cli.Context) error {
 		return fmt.Errorf("failed marshalling installations to JSON: %w", err)
 	}
 
+	if len(*installations) < 1 {
+		fmt.Println("[]")
+		return nil
+	}
+
 	fmt.Println(string(bytes))
 
 	return nil
