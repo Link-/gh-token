@@ -49,7 +49,7 @@ func revokeToken(hostname, token string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 204 {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return fmt.Errorf("token might be invalid or not properly formatted. Unexpected status code: %d", resp.StatusCode)
 	}
 
 	return nil
