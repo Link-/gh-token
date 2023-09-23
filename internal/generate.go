@@ -39,7 +39,7 @@ func Generate(c *cli.Context) error {
 	}
 
 	if jwtExpiry < 1 || jwtExpiry > 10 {
-		return fmt.Errorf("jwt-expiry must be between 1 and 10")
+		jwtExpiry = 10
 	}
 
 	var err error
