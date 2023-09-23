@@ -11,13 +11,15 @@
 
 <!-- markdownlint-disable -->
 
-> Create an installation access token for a GitHub app from your terminal
+> Manage installation access tokens for GitHub apps from your terminal
 
-[![gh-token size](https://img.shields.io/github/size/link-/gh-token/gh-token?style=flat-square)](gh-token) [![License](https://img.shields.io/github/license/link-/gh-token?style=flat-square)](LICENSE) ![platforms supported](https://img.shields.io/static/v1?style=flat-square&label=platform&message=macos%20%7C%20linux)
+[![License](https://img.shields.io/github/license/link-/gh-token?style=flat-square)](LICENSE)
+
 <!-- markdownlint-restore -->
 
-[Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account.
-Installation tokens expire 1 hour from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
+[Creates an installation access token](https://docs.github.com/en/rest/reference/apps#create-an-installation-access-token-for-an-app) to make authenticated API requests.
+
+Installation tokens expire **1 hour** from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token.
 
 You can use this access token to make pretty much any REST or GraphQL API call the app is authorized to make!
 
@@ -33,7 +35,7 @@ In order to use GitHub's [REST](https://docs.github.com/en/rest) or [GraphQL](ht
 1. never (automatically) expire. They have an indefinite lifetime (or at least until you regenerate them)
 1. cannot be revoked (they're only revoked when a new one is generated)
 
-With an access token generated with a GitHub App you don't have to worry about the concerns above. These tokens have a limited scope and lifetime. Just make sure you handle the token safely (avoid leaking). In the worst case scenario, the token will expire in 1 hour from creation time.
+With an access token generated with a GitHub App you don't have to worry about the concerns above. These tokens have a limited scope and lifetime. Just make sure you handle the token safely (avoid leaking). In the worst case scenario, the token will expire in **1 hour from creation time.**
 
 ## Installation
 
@@ -64,7 +66,7 @@ Compatible with [GitHub Enterprise Server](https://github.com/enterprise).
 
 ```text
 NAME:
-   gh-token - Generate a GitHub App installation token
+   gh-token - Manage GitHub App installation tokens
 
 USAGE:
    gh-token [global options] command [command options] [arguments...]
@@ -262,7 +264,7 @@ jobs:
     # before passing it to gh-token
     - name: "Create access token"
       run: |
-        token=$(./gh token generate \
+        token=$(gh token generate \
           --key-base64 $(printf "%s" "$APP_PRIVATE_KEY" | base64 -w 0) \
           --app-id $APP_ID \
           --hostname "github.example.com" \
