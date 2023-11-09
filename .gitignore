@@ -62,3 +62,10 @@ tags
 
 ### Project files
 jwt
+
+# Generated files
+gh-token
+gh-token.exe
+
+# Test app keys
+*.pem
