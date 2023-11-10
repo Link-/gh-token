@@ -112,7 +112,7 @@ $ gh token generate \
 
 ```shell
 $ gh token generate \
-    --key-base64 $(printf "%s" $APP_KEY | base64) \
+    --base64-key $(printf "%s" $APP_KEY | base64) \
     --app-id 1122334 \
     --installation-id 5566778
 
@@ -133,7 +133,7 @@ $ gh token generate \
 
 ```shell
 $ gh token generate \
-    --key-base64 $(printf "%s" $APP_KEY | base64) \
+    --base64-key $(printf "%s" $APP_KEY | base64) \
     --app-id 1122334 \
     --installation-id 5566778 \
     --hostname "github.example.com"
@@ -265,7 +265,7 @@ jobs:
     - name: "Create access token"
       run: |
         token=$(gh token generate \
-          --key-base64 $(printf "%s" "$APP_PRIVATE_KEY" | base64 -w 0) \
+          --base64-key $(printf "%s" "$APP_PRIVATE_KEY" | base64 -w 0) \
           --app-id $APP_ID \
           --hostname "github.example.com" \
           | jq -r ".token")
