@@ -18,7 +18,7 @@ func Generate(c *cli.Context) error {
 	appID := c.String("app-id")
 	installationID := c.String("installation-id")
 	keyPath := c.String("key")
-	keyBase64 := c.String("key-base64")
+	keyBase64 := c.String("base64-key")
 	printJWT := c.Bool("jwt")
 	jwtExpiry := c.Int("jwt-expiry")
 	hostname := strings.ToLower(c.String("hostname"))
