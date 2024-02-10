@@ -18,6 +18,12 @@ func GenerateFlags() []cli.Flag {
 			Aliases:  []string{"l", "installation_id"},
 		},
 		&cli.StringFlag{
+			Name:     "repository",
+			Usage:    "GitHub repository, can be specified in place of GitHub App installation ID",
+			Required: false,
+			Aliases:  []string{"r"},
+		},
+		&cli.StringFlag{
 			Name:     "key",
 			Usage:    "Path to private key",
 			Required: false,
