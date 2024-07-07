@@ -30,7 +30,7 @@ jobs:
 
       - name: Generate installation access token from PEM key file
         run: |
-          echo "$APP_PRIVATE_KEY" | private_key.pem
+          echo "$APP_PRIVATE_KEY" > private_key.pem
           ./gh-token \
             generate \
             -i "$APP_ID" \
@@ -41,7 +41,7 @@ jobs:
 
       - name: List installations for the app from PEM key file
         run: |
-          echo "$APP_PRIVATE_KEY" | private_key.pem
+          echo "$APP_PRIVATE_KEY" > private_key.pem
           ./gh-token \
             installations \
             -i "$APP_ID" \
