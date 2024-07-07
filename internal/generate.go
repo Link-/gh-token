@@ -17,6 +17,7 @@ import (
 func Generate(c *cli.Context) error {
 	appID := c.String("app-id")
 	installationID := c.String("installation-id")
+	repository := c.String("repository")
 	keyPath := c.String("key")
 	keyBase64 := c.String("base64-key")
 	printJWT := c.Bool("jwt")
@@ -31,6 +32,10 @@ func Generate(c *cli.Context) error {
 
 	if keyPath != "" && keyBase64 != "" {
 		return fmt.Errorf("only one of --key or --base64-key may be specified")
+	}
+
+	if installationID != "" && repository != "" {
+		return fmt.Errorf("only one of --installation-id or --repository may be specified")
 	}
 
 	if hostname != "api.github.com" && !strings.Contains(hostname, "/api/v3") {
@@ -69,6 +74,13 @@ func Generate(c *cli.Context) error {
 		return nil
 	}
 
+	if repository != "" {
+		installationID, err = retrieveRepositoryInstallationID(hostname, jsonWebToken, repository)
+		if err != nil {
+			return fmt.Errorf("failed retrieving repository installation ID: %w", err)
+		}
+	}
+
 	if installationID == "" {
 		installationID, err = retrieveDefaultInstallationID(hostname, jsonWebToken)
 		if err != nil {
@@ -97,6 +109,42 @@ func Generate(c *cli.Context) error {
 	return nil
 }
 
+func retrieveRepositoryInstallationID(hostname, jwt string, repository string) (string, error) {
+	endpoint := fmt.Sprintf("https://%s/repos/%s/installation", hostname, repository)
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("unable to create GET request to %s: %w", endpoint, err)
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", jwt))
+	req.Header.Add("Accept", "application/vnd.github+json")
+	req.Header.Add("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Add("User-Agent", "Link-/gh-token")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("unable to GET from %s: %w", endpoint, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var response github.Installation
+	bytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("unable to read response body: %w", err)
+	}
+
+	err = json.Unmarshal(bytes, &response)
+	if err != nil {
+		return "", fmt.Errorf("unable to unmarshal response body: %w", err)
+	}
+
+	return strconv.FormatInt(*response.ID, 10), nil
+}
+
 func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 	endpoint := fmt.Sprintf("https://%s/app/installations?per_page=1", hostname)
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -111,7 +159,7 @@ func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("unable to POST to %s: %w", endpoint, err)
+		return "", fmt.Errorf("unable to GET from %s: %w", endpoint, err)
 	}
 	defer resp.Body.Close()
 
