@@ -72,7 +72,7 @@ USAGE:
    gh-token [global options] command [command options] [arguments...]
 
 VERSION:
-   2.0.0
+   2.0.2
 
 COMMANDS:
    generate       Generate a new GitHub App installation token
@@ -90,11 +90,13 @@ GLOBAL OPTIONS:
 #### Run `gh token` as a `gh` CLI extension
 
 ```shell
-$ gh token generate \
+gh token generate \
     --key ./.keys/private-key.pem \
     --app-id 1122334 \
     --installation-id 5566778
+```
 
+```json
 {
   "token": "ghs_8Joht_______________bLCMS___M0EPOhJ",
   "expires_at": "2023-09-08T18:11:34Z",
@@ -111,11 +113,13 @@ $ gh token generate \
 #### Run `gh token` and pass the key as a base64 encoded string
 
 ```shell
-$ gh token generate \
+gh token generate \
     --base64-key $(printf "%s" $APP_KEY | base64) \
     --app-id 1122334 \
     --installation-id 5566778
+```
 
+```json
 {
   "token": "ghs_8Joht_______________bLCMS___M0EPOhJ",
   "expires_at": "2023-09-08T18:11:34Z",
@@ -132,12 +136,14 @@ $ gh token generate \
 #### Run `gh token` with GitHub Enterprise Server
 
 ```shell
-$ gh token generate \
+gh token generate \
     --base64-key $(printf "%s" $APP_KEY | base64) \
     --app-id 1122334 \
     --installation-id 5566778 \
     --hostname "github.example.com"
+```
 
+```json
 {
   "token": "ghs_8Joht_______________bLCMS___M0EPOhJ",
   "expires_at": "2023-09-08T18:11:34Z",
@@ -154,7 +160,7 @@ $ gh token generate \
 #### Fetch list of installations for an app
 
 ```shell
-$ gh token installations \
+gh token installations \
     --key ./private-key.pem \
     --app-id 2233445
 ```
@@ -222,13 +228,14 @@ $ gh token installations \
 #### Revoke an installation access token
 
 ```shell
-$ gh token revoke \
+gh token revoke \
     --token "v1.bb1___168d_____________1202bb8753b133919" \
     --hostname "github.example.com"
-
-Successfully revoked installation token
 ```
 
+```text
+Successfully revoked installation token
+```
 
 ### Example in a workflow
 
