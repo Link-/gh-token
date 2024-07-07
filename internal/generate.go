@@ -26,11 +26,11 @@ func Generate(c *cli.Context) error {
 	silent := c.Bool("silent")
 
 	if keyPath == "" && keyBase64 == "" {
-		return fmt.Errorf("either --key or --key-base64 must be specified")
+		return fmt.Errorf("either --key or --base64-key must be specified")
 	}
 
 	if keyPath != "" && keyBase64 != "" {
-		return fmt.Errorf("only one of --key or --key-base64 may be specified")
+		return fmt.Errorf("only one of --key or --base64-key may be specified")
 	}
 
 	if hostname != "api.github.com" && !strings.Contains(hostname, "/api/v3") {

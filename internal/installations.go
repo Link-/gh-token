@@ -17,15 +17,15 @@ import (
 func Installations(c *cli.Context) error {
 	appID := c.String("app-id")
 	keyPath := c.String("key")
-	keyBase64 := c.String("key-base64")
+	keyBase64 := c.String("base64-key")
 	hostname := strings.ToLower(c.String("hostname"))
 
 	if keyPath == "" && keyBase64 == "" {
-		return fmt.Errorf("either --key or --key-base64 must be specified")
+		return fmt.Errorf("either --key or --base64-key must be specified")
 	}
 
 	if keyPath != "" && keyBase64 != "" {
-		return fmt.Errorf("only one of --key or --key-base64 may be specified")
+		return fmt.Errorf("only one of --key or --base64-key may be specified")
 	}
 
 	if hostname != "api.github.com" && !strings.Contains(hostname, "/api/v3") {
