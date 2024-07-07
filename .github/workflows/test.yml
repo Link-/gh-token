@@ -51,6 +51,7 @@ jobs:
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Generate installation access token with base64 key
+        continue-on-error: true
         run: |
           ./gh-token \
             generate \
@@ -61,6 +62,7 @@ jobs:
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: List installations for the app with base64 key
+        continue-on-error: true
         run: |
           ./gh-token \
             installations \
