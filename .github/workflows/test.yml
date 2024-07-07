@@ -75,7 +75,7 @@ jobs:
       - name: Generate then revoke token
         run: |
           echo "$APP_PRIVATE_KEY" > private_key.pem
-          token="$(./gh-token generate -i $APP_ID -k private_key.pem)"
+          token="$(./gh-token generate -i $APP_ID -k private_key.pem | jq -r '.token')"
           ./gh-token revoke -t $token
         env:
           APP_ID: ${{ secrets.APP_ID }}
