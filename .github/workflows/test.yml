@@ -1,0 +1,79 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build
+        run: make build
+
+      - name: Generate installation access token from PEM key file
+        run: |
+          echo "$APP_PRIVATE_KEY" | private_key.pem
+          ./gh-token \
+            generate \
+            -i "$APP_ID" \
+            -k private_key.pem > /dev/null 2
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: List installations for the app from PEM key file
+        run: |
+          echo "$APP_PRIVATE_KEY" | private_key.pem
+          ./gh-token \
+            installations \
+            -i "$APP_ID" \
+            -k private_key.pem > /dev/null 2
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Generate installation access token with base64 key
+        run: |
+          ./gh-token \
+            generate \
+            -i "$APP_ID" \
+            -b "$(echo $APP_PRIVATE_KEY | base64)" > /dev/null 2
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: List installations for the app with base64 key
+        run: |
+          ./gh-token \
+            installations \
+            -i "$APP_ID" \
+            -b "$(echo $APP_PRIVATE_KEY | base64)" > /dev/null 2
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Generate then revoke token
+        run: |
+          token="$(./gh-token generate -i $APP_ID -b $APP_PRIVATE_KEY)"
+          ./gh-token revoke -t $token
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
