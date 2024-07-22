@@ -303,6 +303,7 @@ _These are not endorsements, just a listing of similar art work_
 
 ### Actions
 
+- [create-github-app-token](https://github.com/actions/create-github-app-token) (GitHub official)
 - [workflow-application-token-action](https://github.com/peter-murray/workflow-application-token-action)
 - [action-github-app-token](https://github.com/getsentry/action-github-app-token)
 - [github-app-token-generator](https://github.com/navikt/github-app-token-generator)
