@@ -22,4 +22,4 @@ jobs:
         with:
           fetch-depth: 0
       - name: Lint Code
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
