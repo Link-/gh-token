@@ -3,7 +3,7 @@ module github.com/Link-/gh-token
 go 1.23.4
 
 require (
-	github.com/golang-jwt/jwt/v5 v5.0.0
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/go-github/v55 v55.0.0
 	github.com/urfave/cli/v2 v2.27.5
 )
