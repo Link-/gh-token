@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug gh token",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "env": {},
+            "args": [
+                "installations",
+                "-k",
+                "${workspaceFolder}/.keys/test-key.pem",
+                "--app-id",
+                "394554"
+            ],
+            "showLog": true,
+            "trace": "verbose",
+        }
+    ]
+}
