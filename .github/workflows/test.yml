@@ -62,7 +62,7 @@ jobs:
           ./gh-token \
             generate \
             -i "$APP_ID" \
-            -b $(printf "%s" $APP_PRIVATE_KEY | base64) > /dev/null 2
+            -b $(printf "%s" "$APP_PRIVATE_KEY" | base64) > /dev/null 2
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
@@ -73,7 +73,7 @@ jobs:
           ./gh-token \
             installations \
             -i "$APP_ID" \
-            -b $(printf "%s" $APP_PRIVATE_KEY | base64) > /dev/null 2
+            -b $(printf "%s" "$APP_PRIVATE_KEY" | base64) > /dev/null 2
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
