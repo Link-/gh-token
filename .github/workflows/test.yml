@@ -57,23 +57,21 @@ jobs:
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Generate installation access token with base64 key
-        continue-on-error: true
         run: |
           ./gh-token \
             generate \
             -i "$APP_ID" \
-            -b "$(printf %s $APP_PRIVATE_KEY | base64)" > /dev/null 2
+            -b "$(echo "$APP_PRIVATE_KEY" | base64)" > /dev/null 2
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: List installations for the app with base64 key
-        continue-on-error: true
         run: |
           ./gh-token \
             installations \
             -i "$APP_ID" \
-            -b "$(printf %s $APP_PRIVATE_KEY | base64)" > /dev/null 2        
+            -b "$(echo "$APP_PRIVATE_KEY" | base64)" > /dev/null 2
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
