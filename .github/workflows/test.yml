@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
@@ -35,7 +36,7 @@ jobs:
 
       - name: Generate installation access token from PEM key file
         run: |
-          echo "$APP_PRIVATE_KEY" > private_key.pem
+          printf "%s" "$APP_PRIVATE_KEY" > private_key.pem
           ./gh-token \
             generate \
             -i "$APP_ID" \
@@ -46,7 +47,7 @@ jobs:
 
       - name: List installations for the app from PEM key file
         run: |
-          echo "$APP_PRIVATE_KEY" > private_key.pem
+          printf "%s" "$APP_PRIVATE_KEY" > private_key.pem
           ./gh-token \
             installations \
             -i "$APP_ID" \
@@ -56,30 +57,28 @@ jobs:
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Generate installation access token with base64 key
-        continue-on-error: true
         run: |
           ./gh-token \
             generate \
             -i "$APP_ID" \
-            -b $(printf "%s" $APP_PRIVATE_KEY | base64) > /dev/null 2
+            -b "$(echo "$APP_PRIVATE_KEY" | base64)" > /dev/null 2
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: List installations for the app with base64 key
-        continue-on-error: true
         run: |
           ./gh-token \
             installations \
             -i "$APP_ID" \
-            -b $(printf "%s" $APP_PRIVATE_KEY | base64) > /dev/null 2
+            -b "$(echo "$APP_PRIVATE_KEY" | base64)" > /dev/null 2
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Generate then revoke token
         run: |
-          echo "$APP_PRIVATE_KEY" > private_key.pem
+          printf "%s" "$APP_PRIVATE_KEY" > private_key.pemm
           token="$(./gh-token generate -i $APP_ID -k private_key.pem | jq -r '.token')"
           ./gh-token revoke -t $token
         env:
