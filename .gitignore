@@ -70,3 +70,4 @@ gh-token.exe
 
 # Test app keys
 *.pem
+!*.test.pem
