@@ -67,6 +67,7 @@ jwt
 gh-token
 gh-token.exe
 *.out
+.bin/
 
 # Test app keys
 *.pem
