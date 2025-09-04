@@ -6,7 +6,7 @@ Only the versions in the table below will receive security updates.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.x.x   | :white_check_mark: |
+| 2.0.6   | :white_check_mark: |
 
 ## Reporting a Vulnerability
 
