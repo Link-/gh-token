@@ -113,7 +113,9 @@ func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unable to POST to %s: %w", endpoint, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -149,7 +151,9 @@ func generateToken(hostname, jwt, installationID string) (*github.InstallationTo
 	if err != nil {
 		return nil, fmt.Errorf("unable to POST to %s: %w", endpoint, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 201 {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
