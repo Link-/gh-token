@@ -66,6 +66,9 @@ jwt
 # Generated files
 gh-token
 gh-token.exe
+*.out
+.bin/
 
 # Test app keys
 *.pem
+!*.test.pem

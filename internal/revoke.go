@@ -46,7 +46,9 @@ func revokeToken(hostname, token string) error {
 	if err != nil {
 		return fmt.Errorf("unable to DELETE to %s: %w", endpoint, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 204 {
 		return fmt.Errorf("token might be invalid or not properly formatted. Unexpected status code: %d", resp.StatusCode)
