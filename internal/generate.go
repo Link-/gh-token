@@ -2,12 +2,15 @@ package internal
 
 import (
 	"crypto/rsa"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v55/github"
 	"github.com/urfave/cli/v2"
@@ -141,30 +144,64 @@ func generateToken(hostname, jwt, installationID string) (*github.InstallationTo
 	if err != nil {
 		return nil, fmt.Errorf("unable to create POST request to %s: %w", endpoint, err)
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", jwt))
-	req.Header.Add("Accept", "application/vnd.github+json")
-	req.Header.Add("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Add("User-Agent", "Link-/gh-token")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", jwt))
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "Link-/gh-token")
 
-	client := &http.Client{}
+	// --- DIAG ---
+	fmt.Fprintf(os.Stderr, "[DIAG] POST %s\n", endpoint)
+	fmt.Fprintf(os.Stderr, "[DIAG] Request headers:\n")
+	for k, v := range req.Header {
+		if k == "Authorization" {
+			fmt.Fprintf(os.Stderr, "[DIAG]   %s: %s...(%d chars)\n", k, v[0][:20], len(v[0]))
+		} else {
+			fmt.Fprintf(os.Stderr, "[DIAG]   %s: %s\n", k, v)
+		}
+	}
+
+	start := time.Now()
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{},
+	}
+	client := &http.Client{Transport: transport}
 	resp, err := client.Do(req)
+	elapsed := time.Since(start)
+
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[DIAG] Request error after %s: %v\n", elapsed, err)
 		return nil, fmt.Errorf("unable to POST to %s: %w", endpoint, err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode != 201 {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	// --- DIAG: response info ---
+	fmt.Fprintf(os.Stderr, "[DIAG] Response: %d (took %s)\n", resp.StatusCode, elapsed)
+	fmt.Fprintf(os.Stderr, "[DIAG] Response headers:\n")
+	for k, v := range resp.Header {
+		fmt.Fprintf(os.Stderr, "[DIAG]   %s: %s\n", k, v)
+	}
+	if resp.TLS != nil {
+		fmt.Fprintf(os.Stderr, "[DIAG] TLS: version=0x%04x cipher=0x%04x server=%s resumed=%v\n",
+			resp.TLS.Version, resp.TLS.CipherSuite, resp.TLS.ServerName, resp.TLS.DidResume)
+		if len(resp.TLS.PeerCertificates) > 0 {
+			fmt.Fprintf(os.Stderr, "[DIAG] Cert: subject=%s issuer=%s\n",
+				resp.TLS.PeerCertificates[0].Subject, resp.TLS.PeerCertificates[0].Issuer)
+		}
 	}
 
-	var response *github.InstallationToken
 	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read response body: %w", err)
 	}
 
+	if resp.StatusCode != 201 {
+		fmt.Fprintf(os.Stderr, "[DIAG] Error body: %s\n", string(bytes))
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var response *github.InstallationToken
 	err = json.Unmarshal(bytes, &response)
 	if err != nil {
 		return nil, fmt.Errorf("unable to unmarshal response body: %w", err)
