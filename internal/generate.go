@@ -20,7 +20,7 @@ func Generate(c *cli.Context) error {
 	keyPath := c.String("key")
 	keyBase64 := c.String("base64-key")
 	printJWT := c.Bool("jwt")
-	jwtExpiry := c.Int("jwt-expiry")
+	jwtExpiry := c.Int("duration")
 	hostname := strings.ToLower(c.String("hostname"))
 	tokenOnly := c.Bool("token-only")
 	silent := c.Bool("silent")
@@ -39,7 +39,7 @@ func Generate(c *cli.Context) error {
 	}
 
 	if jwtExpiry < 1 || jwtExpiry > 10 {
-		jwtExpiry = 10
+		jwtExpiry = 5
 	}
 
 	var err error
