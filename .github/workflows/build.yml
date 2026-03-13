@@ -1,0 +1,28 @@
+name: Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: |
+          go build -trimpath -ldflags="-s -w" -o gh-token-windows-amd64.exe .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gh-token-windows-amd64
+          path: gh-token-windows-amd64.exe
