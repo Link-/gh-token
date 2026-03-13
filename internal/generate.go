@@ -39,7 +39,7 @@ func Generate(c *cli.Context) error {
 	}
 
 	if jwtExpiry < 1 || jwtExpiry > 10 {
-		jwtExpiry = 10
+		jwtExpiry = 5
 	}
 
 	var err error
