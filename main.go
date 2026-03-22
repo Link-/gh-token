@@ -13,7 +13,7 @@ func main() {
 	app := &cli.App{
 		Name:                 "gh-token",
 		Usage:                "Manage GitHub App installation tokens",
-		Version:              "2.0.6",
+		Version:              Version,
 		EnableBashCompletion: true,
 		Suggest:              true,
 		Commands: []*cli.Command{
