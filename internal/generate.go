@@ -111,7 +111,7 @@ func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("unable to POST to %s: %w", endpoint, err)
+		return "", fmt.Errorf("unable to GET %s: %w", endpoint, err)
 	}
 	defer func() {
 		_ = resp.Body.Close()

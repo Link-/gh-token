@@ -45,7 +45,7 @@ install-lint-deps:
 
 # Create a new release
 release:
-	@echo "Current version in main.go: $$(grep 'Version:' main.go | sed 's/.*Version: *"\(.*\)".*/\1/')"
+	@echo "Current version in version.go: $$(grep 'Version' version.go | sed 's/.*Version = "\(.*\)".*/\1/')"
 	@echo "Current version in SECURITY.md: $$(grep -A2 '| Version' SECURITY.md | tail -1 | sed 's/| *\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')"
 	@echo ""
 	@read -p "Enter the new semver version (e.g., 2.1.0): " VERSION; \
@@ -59,12 +59,12 @@ release:
 	fi; \
 	MAJOR_MINOR=$$(echo "$$VERSION" | sed 's/\([0-9]*\.[0-9]*\)\.[0-9]*/\1/'); \
 	echo "Updating version to $$VERSION..."; \
-	sed -i.bak 's/Version: *"[^"]*"/Version:              "'"$$VERSION"'"/' main.go && rm main.go.bak; \
+	sed -i.bak 's/Version = "[^"]*"/Version = "'"$$VERSION"'"/' version.go && rm version.go.bak; \
 	sed -i.bak 's/| [0-9]*\.[0-9]*\.[0-9]* *|/| '"$$MAJOR_MINOR"'.x   |/' SECURITY.md && rm SECURITY.md.bak; \
 	echo "Files updated successfully."; \
 	echo ""; \
 	echo "Staging and committing changes..."; \
-	git add main.go SECURITY.md; \
+	git add version.go SECURITY.md; \
 	git commit -m "Update version to $$VERSION"; \
 	echo ""; \
 	echo "Changes committed successfully!"; \
