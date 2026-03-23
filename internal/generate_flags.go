@@ -51,10 +51,10 @@ func GenerateFlags() []cli.Flag {
 		},
 		&cli.IntFlag{
 			Name:     "duration",
-			Usage:    "The expiry time of the JWT in minutes, from 1 to 10 (default: 5). Lower values are safer against clock drift",
+			Usage:    "The expiry time of the JWT in minutes up to a maximum value of 10, useful when using the --jwt flag",
 			Required: false,
 			Aliases:  []string{"d"},
-			Value:    5,
+			Value:    1,
 		},
 		&cli.BoolFlag{
 			Name:    "silent",
