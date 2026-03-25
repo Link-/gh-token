@@ -8,6 +8,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch name to checkout and run tests for"
+        required: false
+        default: "refs/heads/main"
+        type: string
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
@@ -24,6 +30,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.branch || 'refs/heads/main' }}
           fetch-depth: 0
 
       - uses: actions/setup-go@v6
@@ -42,6 +49,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.branch || 'refs/heads/main' }}
           fetch-depth: 0
 
       - uses: actions/setup-go@v6
