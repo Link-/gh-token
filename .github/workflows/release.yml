@@ -11,6 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Verify tag matches version.go
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          VERSION="$(grep -oP 'Version = "\K[^"]+' version.go)"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Tag v${TAG} does not match Version in version.go (${VERSION}). Please update version.go."
+            exit 1
+          fi
       - uses: cli/gh-extension-precompile@v2
         with:
           go_version_file: go.mod
