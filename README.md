@@ -64,6 +64,8 @@ Follow [these steps](https://docs.github.com/en/developers/apps/creating-a-githu
 
 Compatible with [GitHub Enterprise Server](https://github.com/enterprise).
 
+[GitHub recommends](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app#generating-a-json-web-token-jwt) using your app's **client ID** (rather than the numeric app ID) when authenticating. Both values are accepted by the GitHub API and can be passed via the `--client-id` (preferred) or `--app-id` flag. If both are provided, `--client-id` is used.
+
 ```text
 NAME:
    gh-token - Manage GitHub App installation tokens
@@ -92,7 +94,7 @@ GLOBAL OPTIONS:
 ```shell
 gh token generate \
     --key ./.keys/private-key.pem \
-    --app-id 1122334 \
+    --client-id Iv23aBcD9eFgH1jKlMnO \
     --installation-id 5566778
 ```
 
@@ -115,7 +117,7 @@ gh token generate \
 ```shell
 gh token generate \
     --base64-key $(printf "%s" $APP_KEY | base64) \
-    --app-id 1122334 \
+    --client-id Iv23aBcD9eFgH1jKlMnO \
     --installation-id 5566778
 ```
 
@@ -138,7 +140,7 @@ gh token generate \
 ```shell
 gh token generate \
     --base64-key $(printf "%s" $APP_KEY | base64) \
-    --app-id 1122334 \
+    --client-id Iv23aBcD9eFgH1jKlMnO \
     --installation-id 5566778 \
     --hostname "github.example.com"
 ```
@@ -162,7 +164,7 @@ gh token generate \
 ```shell
 gh token installations \
     --key ./private-key.pem \
-    --app-id 2233445
+    --client-id Iv23aBcD9eFgH1jKlMnO
 ```
 
 <details>
@@ -246,7 +248,7 @@ Successfully revoked installation token
 1. You need to create a secret to store the **applications private key** securely (this can be an organization or a repository secret):
     ![Create private key secret](images/create_secret.png)
 
-1. You need to create another secret to store the **application id** security (same as the step above).
+1. You need to create another secret to store the **client ID** ([GitHub recommended](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow#authenticating-with-a-github-app)), or app ID security (same as the step above).
 
 1. The secrets need to be provided as an environment variable then encoded into base64 as show in the workflow example:
 
@@ -266,19 +268,19 @@ jobs:
     steps:
     - name: "Install gh-token"
       run: gh extension install Link-/gh-token
-    # Create access token with a GitHub App ID and Key
+    # Create access token with a GitHub App Client ID and Key
     # We use the private key stored as a secret and encode it into base64
     # before passing it to gh-token
     - name: "Create access token"
       run: |
         token=$(gh token generate \
           --base64-key $(printf "%s" "$APP_PRIVATE_KEY" | base64 -w 0) \
-          --app-id $APP_ID \
+          --client-id $APP_CLIENT_ID \
           --hostname "github.example.com" \
           | jq -r ".token")
         echo "token=$token" >> $GITHUB_OUTPUT
       env:
-        APP_ID: ${{ secrets.APP_ID }}
+        APP_CLIENT_ID: ${{ secrets.APP_CLIENT_ID }}
         APP_PRIVATE_KEY: ${{ secrets.APP_KEY }}
     # To test the token we will use it to fetch the list of repositories
     # belonging to our organization

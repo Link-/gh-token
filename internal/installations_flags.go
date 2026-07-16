@@ -6,9 +6,15 @@ import "github.com/urfave/cli/v2"
 func InstallationsFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
+			Name:     "client-id",
+			Usage:    "GitHub App client ID (preferred)",
+			Required: false,
+			Aliases:  []string{"client_id"},
+		},
+		&cli.StringFlag{
 			Name:     "app-id",
-			Usage:    "GitHub App ID",
-			Required: true,
+			Usage:    "GitHub App app ID",
+			Required: false,
 			Aliases:  []string{"i", "app_id"},
 		},
 		&cli.StringFlag{

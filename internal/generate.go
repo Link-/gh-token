@@ -15,7 +15,10 @@ import (
 
 // Generate is the entrypoint for the generate command
 func Generate(c *cli.Context) error {
-	appID := c.String("app-id")
+	iss, err := resolveIss(c)
+	if err != nil {
+		return err
+	}
 	installationID := c.String("installation-id")
 	keyPath := c.String("key")
 	keyBase64 := c.String("base64-key")
@@ -42,7 +45,6 @@ func Generate(c *cli.Context) error {
 		jwtExpiry = 10
 	}
 
-	var err error
 	var privateKey *rsa.PrivateKey
 	if keyPath != "" {
 		privateKey, err = readKey(keyPath)
@@ -56,7 +58,7 @@ func Generate(c *cli.Context) error {
 		}
 	}
 
-	jsonWebToken, err := generateJWT(appID, jwtExpiry, privateKey)
+	jsonWebToken, err := generateJWT(iss, jwtExpiry, privateKey)
 	if err != nil {
 		return fmt.Errorf("failed generating JWT: %w", err)
 	}
@@ -95,6 +97,16 @@ func Generate(c *cli.Context) error {
 	}
 
 	return nil
+}
+
+func resolveIss(c *cli.Context) (string, error) {
+	if clientID := c.String("client-id"); clientID != "" {
+		return clientID, nil
+	}
+	if appID := c.String("app-id"); appID != "" {
+		return appID, nil
+	}
+	return "", fmt.Errorf("either --client-id or --app-id must be specified")
 }
 
 func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
