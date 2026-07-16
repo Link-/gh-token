@@ -241,6 +241,8 @@ Successfully revoked installation token
 
 ### Example in a workflow
 
+This follow's [GitHub's guide](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow) for using a GitHub App in a GitHub Actions workflow. 
+
 <details>
 
   <summary>Expand to show instructions</summary>
@@ -248,9 +250,9 @@ Successfully revoked installation token
 1. You need to create a secret to store the **applications private key** securely (this can be an organization or a repository secret):
     ![Create private key secret](images/create_secret.png)
 
-1. You need to create another secret to store the **client ID** ([GitHub recommended](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow#authenticating-with-a-github-app)), or app ID security (same as the step above).
+1. Store the **client ID** ([GitHub recommended](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow#authenticating-with-a-github-app)), or app ID as a [repository or organization variable](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables).
 
-1. The secrets need to be provided as an environment variable then encoded into base64 as show in the workflow example:
+1. The private key secret and client ID variable need to be provided as environment variables. The private key is encoded into base64 as shown in the workflow example below.
 
 This example is designed to run on GitHub Enterprise Server. To use the same workflow with GitHub.com update the hostname to `api.github.com` and change the API URL in the testing step.
 
@@ -268,7 +270,7 @@ jobs:
     steps:
     - name: "Install gh-token"
       run: gh extension install Link-/gh-token
-    # Create access token with a GitHub App Client ID and Key
+    # Create access token with a GitHub App client ID and key
     # We use the private key stored as a secret and encode it into base64
     # before passing it to gh-token
     - name: "Create access token"
@@ -280,7 +282,7 @@ jobs:
           | jq -r ".token")
         echo "token=$token" >> $GITHUB_OUTPUT
       env:
-        APP_CLIENT_ID: ${{ secrets.APP_CLIENT_ID }}
+        APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
         APP_PRIVATE_KEY: ${{ secrets.APP_KEY }}
     # To test the token we will use it to fetch the list of repositories
     # belonging to our organization
