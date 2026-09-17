@@ -33,7 +33,7 @@ jobs:
           ref: ${{ inputs.branch || 'refs/heads/main' }}
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go version
@@ -52,7 +52,7 @@ jobs:
           ref: ${{ inputs.branch || 'refs/heads/main' }}
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go version
