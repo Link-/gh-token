@@ -22,6 +22,7 @@ func createTestContext(flags map[string]interface{}) *cli.Context {
 
 	// Set default values
 	defaults := map[string]interface{}{
+		"client-id":       "",
 		"app-id":          "",
 		"installation-id": "",
 		"key":             "",
@@ -91,7 +92,7 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "successful_token_generation_with_key_file",
 			flags: map[string]interface{}{
-				"app-id":          "123456",
+				"client-id":       "123456",
 				"installation-id": "12345",
 				"key":             "fixtures/test-private-key.test.pem",
 				"hostname":        "api.github.com",
@@ -107,7 +108,7 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "successful_token_generation_with_base64_key",
 			flags: map[string]interface{}{
-				"app-id":          "123456",
+				"client-id":       "123456",
 				"installation-id": "12345",
 				"base64-key":      keyBase64,
 				"hostname":        "api.github.com",
@@ -123,7 +124,7 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "successful_with_auto_installation_id",
 			flags: map[string]interface{}{
-				"app-id":     "123456",
+				"client-id":  "123456",
 				"key":        "fixtures/test-private-key.test.pem",
 				"hostname":   "api.github.com",
 				"jwt-expiry": 10,
@@ -140,6 +141,43 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "successful_jwt_only",
 			flags: map[string]interface{}{
+				"client-id":  "123456",
+				"key":        "fixtures/test-private-key.test.pem",
+				"jwt":        true,
+				"jwt-expiry": 10,
+				"silent":     true,
+			},
+			setupMocks:    func() {},
+			expectedError: "",
+		},
+		{
+			name: "error_no_app_identifier_specified",
+			flags: map[string]interface{}{
+				"key": "fixtures/test-private-key.test.pem",
+			},
+			setupMocks:    func() {},
+			expectedError: "either --client-id or --app-id must be specified",
+		},
+		{
+			name: "successful_token_generation_with_app_id",
+			flags: map[string]interface{}{
+				"app-id":          "123456",
+				"installation-id": "12345",
+				"key":             "fixtures/test-private-key.test.pem",
+				"hostname":        "api.github.com",
+				"jwt-expiry":      10,
+				"silent":          true,
+			},
+			setupMocks: func() {
+				httpmock.RegisterResponder("POST", "https://api.github.com/app/installations/12345/access_tokens",
+					httpmock.NewStringResponder(201, string(tokenJSON)))
+			},
+			expectedError: "",
+		},
+		{
+			name: "prefers_client_id_when_both_specified",
+			flags: map[string]interface{}{
+				"client-id":  "Iv23aBcD9eFgH1jKlMnO",
 				"app-id":     "123456",
 				"key":        "fixtures/test-private-key.test.pem",
 				"jwt":        true,
@@ -152,7 +190,7 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "error_no_key_specified",
 			flags: map[string]interface{}{
-				"app-id": "123456",
+				"client-id": "123456",
 			},
 			setupMocks:    func() {},
 			expectedError: "either --key or --base64-key must be specified",
@@ -160,7 +198,7 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "error_both_keys_specified",
 			flags: map[string]interface{}{
-				"app-id":     "123456",
+				"client-id":  "123456",
 				"key":        "fixtures/test-private-key.test.pem",
 				"base64-key": keyBase64,
 			},
@@ -170,8 +208,8 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "error_invalid_key_file",
 			flags: map[string]interface{}{
-				"app-id": "123456",
-				"key":    "fixtures/nonexistent.pem",
+				"client-id": "123456",
+				"key":       "fixtures/nonexistent.pem",
 			},
 			setupMocks:    func() {},
 			expectedError: "unable to read key file",
@@ -179,7 +217,7 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "error_invalid_base64_key",
 			flags: map[string]interface{}{
-				"app-id":     "123456",
+				"client-id":  "123456",
 				"base64-key": "invalid-base64-string",
 			},
 			setupMocks:    func() {},
@@ -188,8 +226,8 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "error_installation_not_found",
 			flags: map[string]interface{}{
-				"app-id": "123456",
-				"key":    "fixtures/test-private-key.test.pem",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://api.github.com/app/installations?per_page=1",
@@ -200,7 +238,7 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "error_token_generation_fails",
 			flags: map[string]interface{}{
-				"app-id":          "123456",
+				"client-id":       "123456",
 				"installation-id": "12345",
 				"key":             "fixtures/test-private-key.test.pem",
 			},
@@ -398,7 +436,7 @@ func TestGenerateAdvancedCases(t *testing.T) {
 			name: "jwt_expiry_below_minimum",
 			setupTest: func() *cli.Context {
 				return createTestContext(map[string]interface{}{
-					"app-id":     "123456",
+					"client-id":  "123456",
 					"key":        "fixtures/test-private-key.test.pem",
 					"jwt-expiry": 0, // Below minimum, should be adjusted to 10
 					"jwt":        true,
@@ -412,7 +450,7 @@ func TestGenerateAdvancedCases(t *testing.T) {
 			name: "jwt_expiry_above_maximum",
 			setupTest: func() *cli.Context {
 				return createTestContext(map[string]interface{}{
-					"app-id":     "123456",
+					"client-id":  "123456",
 					"key":        "fixtures/test-private-key.test.pem",
 					"jwt-expiry": 15, // Above maximum, should be adjusted to 10
 					"jwt":        true,
@@ -426,7 +464,7 @@ func TestGenerateAdvancedCases(t *testing.T) {
 			name: "hostname_without_api_path",
 			setupTest: func() *cli.Context {
 				return createTestContext(map[string]interface{}{
-					"app-id":          "123456",
+					"client-id":       "123456",
 					"installation-id": "12345",
 					"key":             "fixtures/test-private-key.test.pem",
 					"hostname":        "github.company.com", // Without /api/v3
@@ -448,7 +486,7 @@ func TestGenerateAdvancedCases(t *testing.T) {
 			name: "hostname_with_api_path_already_included",
 			setupTest: func() *cli.Context {
 				return createTestContext(map[string]interface{}{
-					"app-id":          "123456",
+					"client-id":       "123456",
 					"installation-id": "12345",
 					"key":             "fixtures/test-private-key.test.pem",
 					"hostname":        "github.company.com/api/v3", // Already has /api/v3
@@ -505,7 +543,7 @@ func TestGenerateWithOutputFormats(t *testing.T) {
 		{
 			name: "json_output_format",
 			flags: map[string]interface{}{
-				"app-id":          "123456",
+				"client-id":       "123456",
 				"installation-id": "12345",
 				"key":             "fixtures/test-private-key.test.pem",
 				"hostname":        "api.github.com",
@@ -520,7 +558,7 @@ func TestGenerateWithOutputFormats(t *testing.T) {
 		{
 			name: "token_only_output_format",
 			flags: map[string]interface{}{
-				"app-id":          "123456",
+				"client-id":       "123456",
 				"installation-id": "12345",
 				"key":             "fixtures/test-private-key.test.pem",
 				"hostname":        "api.github.com",
@@ -536,7 +574,7 @@ func TestGenerateWithOutputFormats(t *testing.T) {
 		{
 			name: "jwt_output_format",
 			flags: map[string]interface{}{
-				"app-id":     "123456",
+				"client-id":  "123456",
 				"key":        "fixtures/test-private-key.test.pem",
 				"jwt":        true,
 				"jwt-expiry": 10,
@@ -560,6 +598,58 @@ func TestGenerateWithOutputFormats(t *testing.T) {
 			if !getBoolFlag(tt.flags, "jwt") {
 				info := httpmock.GetCallCountInfo()
 				assert.Greater(t, len(info), 0, "Expected HTTP calls to be made")
+			}
+		})
+	}
+}
+
+func TestResolveIss(t *testing.T) {
+	tests := []struct {
+		name          string
+		flags         map[string]interface{}
+		expectedIss   string
+		expectedError string
+	}{
+		{
+			name: "client_id_only",
+			flags: map[string]interface{}{
+				"client-id": "Iv23aBcD9eFgH1jKlMnO",
+			},
+			expectedIss: "Iv23aBcD9eFgH1jKlMnO",
+		},
+		{
+			name: "app_id_only",
+			flags: map[string]interface{}{
+				"app-id": "123456",
+			},
+			expectedIss: "123456",
+		},
+		{
+			name: "prefers_client_id",
+			flags: map[string]interface{}{
+				"client-id": "Iv23aBcD9eFgH1jKlMnO",
+				"app-id":    "123456",
+			},
+			expectedIss: "Iv23aBcD9eFgH1jKlMnO",
+		},
+		{
+			name:          "neither_specified",
+			flags:         map[string]interface{}{},
+			expectedError: "either --client-id or --app-id must be specified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			iss, err := resolveIss(createTestContext(tt.flags))
+
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+				assert.Equal(t, "", iss)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedIss, iss)
 			}
 		})
 	}

@@ -15,7 +15,10 @@ import (
 
 // Installations is the entrypoint for the installations command
 func Installations(c *cli.Context) error {
-	appID := c.String("app-id")
+	iss, err := resolveIss(c)
+	if err != nil {
+		return err
+	}
 	keyPath := c.String("key")
 	keyBase64 := c.String("base64-key")
 	hostname := strings.ToLower(c.String("hostname"))
@@ -33,7 +36,6 @@ func Installations(c *cli.Context) error {
 		hostname = strings.TrimSuffix(endpoint, "/")
 	}
 
-	var err error
 	var privateKey *rsa.PrivateKey
 	if keyPath != "" {
 		privateKey, err = readKey(keyPath)
@@ -47,7 +49,7 @@ func Installations(c *cli.Context) error {
 		}
 	}
 
-	jsonWebToken, err := generateJWT(appID, 1, privateKey)
+	jsonWebToken, err := generateJWT(iss, 1, privateKey)
 	if err != nil {
 		return fmt.Errorf("failed generating JWT: %w", err)
 	}
