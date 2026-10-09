@@ -100,6 +100,10 @@ func GenerateFlags() []cli.Flag {
 			Usage: "Git remote to read the current repository from",
 			Value: "origin",
 		},
+		&cli.StringFlag{
+			Name:  "output-file",
+			Usage: "Write the token atomically to this file (mode 0600) instead of stdout, plus metadata to <file>.json. Mount its directory, not the file, into containers",
+		},
 		&cli.BoolFlag{
 			Name:  "verify-installation",
 			Usage: "With --installation-id and a scope, check that the ID matches the installation found for the scope's owner",

@@ -43,7 +43,7 @@ func Generate(c *cli.Context) error {
 	if printJWT && opts.active() {
 		return fmt.Errorf("--jwt cannot be combined with scope or output flags")
 	}
-	if err := opts.validate(installationID); err != nil {
+	if err := opts.validate(installationID, tokenOnly); err != nil {
 		return err
 	}
 

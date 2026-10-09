@@ -35,6 +35,7 @@ type scopeOptions struct {
 	currentRepoSet     bool
 	gitDir             string
 	gitRemote          string
+	outputFile         string
 }
 
 func readScopeOptions(c *cli.Context) *scopeOptions {
@@ -49,17 +50,22 @@ func readScopeOptions(c *cli.Context) *scopeOptions {
 		currentRepoSet:     c.IsSet("current-repo"),
 		gitDir:             c.String("git-dir"),
 		gitRemote:          c.String("git-remote"),
+		outputFile:         c.String("output-file"),
 	}
 }
 
 // active reports whether any of the new flags is in use.
 func (o *scopeOptions) active() bool {
 	return o.scopeFile != "" || len(o.repositories) > 0 || len(o.permissions) > 0 ||
-		o.mergePermissions || o.printRequest || o.verifyInstallation || o.currentRepo
+		o.mergePermissions || o.printRequest || o.verifyInstallation || o.currentRepo ||
+		o.outputFile != ""
 }
 
 // validate checks flag combinations that don't need any I/O.
-func (o *scopeOptions) validate(installationID string) error {
+func (o *scopeOptions) validate(installationID string, tokenOnly bool) error {
+	if o.outputFile != "" && tokenOnly {
+		return fmt.Errorf("--output-file cannot be combined with --token-only; the file always holds just the token")
+	}
 	if o.scopeFile != "" && len(o.repositories) > 0 {
 		return fmt.Errorf("--scope-file and --repository cannot be combined; list the repositories in the scope file")
 	}
@@ -246,6 +252,12 @@ func (g *scopedGeneration) warn(format string, args ...any) {
 	}
 }
 
+func (g *scopedGeneration) log(format string, args ...any) {
+	if !g.silent {
+		_, _ = fmt.Fprintf(stderr, "%s "+format+"\n", append([]any{time.Now().UTC().Format(time.RFC3339)}, args...)...)
+	}
+}
+
 func (g *scopedGeneration) run() error {
 	scopeFile, err := g.opts.buildScope(g.hostname)
 	if err != nil {
@@ -290,6 +302,14 @@ func (g *scopedGeneration) run() error {
 	}
 	for _, w := range verifyMintedToken(body, token.details) {
 		g.warn("%s", w)
+	}
+
+	if g.opts.outputFile != "" {
+		if err := writeTokenFiles(g.opts.outputFile, token); err != nil {
+			return err
+		}
+		g.log("token written to %s, expires at %s", g.opts.outputFile, token.GetExpiresAt().UTC().Format(time.RFC3339))
+		return nil
 	}
 
 	return g.printToken(token.InstallationToken)
