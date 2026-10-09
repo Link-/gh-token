@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -366,7 +368,7 @@ func TestGenerateToken(t *testing.T) {
 			httpmock.RegisterResponder("POST", endpoint,
 				httpmock.NewStringResponder(tt.responseCode, tt.responseBody))
 
-			result, err := generateToken(tt.hostname, tt.jwt, tt.installationID)
+			result, err := generateToken(tt.hostname, tt.jwt, tt.installationID, nil)
 
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -575,7 +577,7 @@ func TestUnexpectedStatusErrorBody(t *testing.T) {
 	t.Run("empty_body", func(t *testing.T) {
 		httpmock.Reset()
 		httpmock.RegisterResponder("POST", endpoint, httpmock.NewStringResponder(500, ""))
-		_, err := generateToken("api.github.com", "test.jwt.token", "12345")
+		_, err := generateToken("api.github.com", "test.jwt.token", "12345", nil)
 		assert.EqualError(t, err, "unexpected status code: 500")
 	})
 
@@ -583,7 +585,60 @@ func TestUnexpectedStatusErrorBody(t *testing.T) {
 		httpmock.Reset()
 		long := strings.Repeat("x", maxErrorBodyBytes+100)
 		httpmock.RegisterResponder("POST", endpoint, httpmock.NewStringResponder(422, long))
-		_, err := generateToken("api.github.com", "test.jwt.token", "12345")
+		_, err := generateToken("api.github.com", "test.jwt.token", "12345", nil)
 		assert.EqualError(t, err, "unexpected status code: 422: "+long[:maxErrorBodyBytes])
 	})
+}
+
+func TestGenerateTokenRequestBody(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	endpoint := "https://api.github.com/app/installations/12345/access_tokens"
+	tokenJSON := `{"token":"ghs_test_token_123"}`
+
+	tests := []struct {
+		name                string
+		body                *accessTokenRequest
+		expectedBody        string
+		expectedContentType string
+	}{
+		{name: "nil_body_sends_no_body", body: nil, expectedBody: "", expectedContentType: ""},
+		{name: "empty_body_sends_no_body", body: &accessTokenRequest{}, expectedBody: "", expectedContentType: ""},
+		{
+			name: "scoped_body",
+			body: &accessTokenRequest{
+				Repositories: []string{"some-fork"},
+				Permissions:  map[string]string{"contents": "write", "actions": "read"},
+			},
+			expectedBody:        `{"repositories":["some-fork"],"permissions":{"actions":"read","contents":"write"}}`,
+			expectedContentType: "application/json",
+		},
+		{
+			name:                "repository_ids",
+			body:                &accessTokenRequest{RepositoryIDs: []int64{1, 2}},
+			expectedBody:        `{"repository_ids":[1,2]}`,
+			expectedContentType: "application/json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			httpmock.Reset()
+			var gotBody, gotContentType string
+			httpmock.RegisterResponder("POST", endpoint, func(req *http.Request) (*http.Response, error) {
+				if req.Body != nil {
+					b, _ := io.ReadAll(req.Body)
+					gotBody = string(b)
+				}
+				gotContentType = req.Header.Get("Content-Type")
+				return httpmock.NewStringResponse(201, tokenJSON), nil
+			})
+
+			_, err := generateToken("api.github.com", "test.jwt.token", "12345", tt.body)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedBody, gotBody)
+			assert.Equal(t, tt.expectedContentType, gotContentType)
+		})
+	}
 }

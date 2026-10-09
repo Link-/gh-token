@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -76,7 +77,7 @@ func Generate(c *cli.Context) error {
 		}
 	}
 
-	token, err := generateToken(hostname, jsonWebToken, installationID)
+	token, err := generateToken(hostname, jsonWebToken, installationID, nil)
 	if err != nil {
 		return fmt.Errorf("failed generating installation token: %w", err)
 	}
@@ -135,11 +136,36 @@ func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 	return strconv.FormatInt(*response[0].ID, 10), nil
 }
 
-func generateToken(hostname, jwt, installationID string) (*github.InstallationToken, error) {
+// accessTokenRequest is the optional body of the "create an installation
+// access token" request. It can only narrow the installation's access.
+type accessTokenRequest struct {
+	Repositories  []string          `json:"repositories,omitempty"`
+	RepositoryIDs []int64           `json:"repository_ids,omitempty"`
+	Permissions   map[string]string `json:"permissions,omitempty"`
+}
+
+func (r *accessTokenRequest) isEmpty() bool {
+	return r == nil || (len(r.Repositories) == 0 && len(r.RepositoryIDs) == 0 && len(r.Permissions) == 0)
+}
+
+func generateToken(hostname, jwt, installationID string, body *accessTokenRequest) (*github.InstallationToken, error) {
 	endpoint := fmt.Sprintf("https://%s/app/installations/%s/access_tokens", hostname, installationID)
-	req, err := newAPIRequest("POST", endpoint, jwt, nil)
+
+	var reqBody io.Reader
+	if !body.isEmpty() {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal request body: %w", err)
+		}
+		reqBody = bytes.NewReader(b)
+	}
+
+	req, err := newAPIRequest("POST", endpoint, jwt, reqBody)
 	if err != nil {
 		return nil, err
+	}
+	if reqBody != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	client := &http.Client{}
