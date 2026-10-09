@@ -88,7 +88,9 @@ if [ "$host" != "github.com" ]; then
 fi
 
 log="$token_dir/refresh.log"
-checksum() { cksum <"$1" 2>/dev/null || true; }
+checksum() {
+  if [ -f "$1" ]; then cksum <"$1"; fi
+}
 before="$(checksum "$token_dir/token")"
 
 echo "gh-token host-init: starting refresher, token dir $token_dir (log: $log)" >&2

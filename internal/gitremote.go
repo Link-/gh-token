@@ -55,12 +55,16 @@ func parseGitRemoteURL(raw string) (host, owner, repo string, err error) {
 
 // webHostForAPI returns the git host matching an API hostname as normalised
 // by Generate: api.github.com -> github.com, ghes.example.com/api/v3 ->
-// ghes.example.com.
+// ghes.example.com. Ports are dropped, as in parseGitRemoteURL.
 func webHostForAPI(apiHostname string) string {
 	if apiHostname == "api.github.com" {
 		return "github.com"
 	}
-	return strings.TrimSuffix(strings.TrimSuffix(apiHostname, "/"), "/api/v3")
+	host := strings.TrimSuffix(strings.TrimSuffix(apiHostname, "/"), "/api/v3")
+	if u, err := url.Parse("https://" + host); err == nil && u.Hostname() != "" {
+		return strings.ToLower(u.Hostname())
+	}
+	return host
 }
 
 // gitRemoteURL returns the URL of a remote of the clone at gitDir. It shells

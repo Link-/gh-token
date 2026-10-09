@@ -56,6 +56,7 @@ func TestWebHostForAPI(t *testing.T) {
 	assert.Equal(t, "github.com", webHostForAPI("api.github.com"))
 	assert.Equal(t, "ghes.example.com", webHostForAPI("ghes.example.com/api/v3"))
 	assert.Equal(t, "ghes.example.com", webHostForAPI("ghes.example.com/api/v3/"))
+	assert.Equal(t, "ghes.example.com", webHostForAPI("GHES.example.com:8443/api/v3"))
 }
 
 // initGitRepo creates a git repository with the given origin URL and
