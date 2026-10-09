@@ -451,7 +451,7 @@ Different permissions for the clone and the extra repositories (for example `con
 
 ### Integration test
 
-The [Scoped Token Integration](.github/workflows/integration-scoped.yml) workflow checks all of this against the real API, on pull requests from the same repository and on manual runs. It needs the `APP_ID` and `APP_PRIVATE_KEY` secrets for an App installed on the repository with Metadata read, Contents read, Pull requests read and write, and Issues read and write. Issues write is there only to prove that a token without it is refused. It:
+The [Scoped Token Integration](.github/workflows/integration-scoped.yml) workflow checks all of this against the real API, on pull requests from the same repository and on manual runs. It needs the `APP_ID` and `APP_PRIVATE_KEY` repository secrets (`APP_ID` may also be a repository variable) for an App installed on the repository with Metadata read, Contents read, Pull requests read and write, and Issues read and write. Issues write is there only to prove that a token without it is refused. It:
 
 - mints a token for the current repository and checks the request, the token's repositories and permissions, that out-of-scope writes get a 403, and that revoking works;
 - starts a real devcontainer with `devcontainer up` and a scope of `contents: read` and `pull_requests: write`, then runs [`in-container.sh`](contrib/devcontainer/tests/in-container.sh) inside it: no private key in the container, `gh` and git use the token, pushing and creating labels are refused, and commenting on the pull request works (the comment is deleted right away).

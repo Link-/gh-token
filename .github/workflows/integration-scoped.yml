@@ -45,9 +45,14 @@ jobs:
 
       - name: Write private key
         run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_PRIVATE_KEY" ]; then
+            echo "::error::APP_ID and APP_PRIVATE_KEY are not available to this run. Add them under Settings > Secrets and variables > Actions as repository secrets (APP_ID may also be a repository variable); environment and Dependabot secrets are not visible here."
+            exit 1
+          fi
           umask 077
           printf "%s" "$APP_PRIVATE_KEY" > "$RUNNER_TEMP/app.pem"
         env:
+          APP_ID: ${{ secrets.APP_ID || vars.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Check the App's permissions make the tests meaningful
@@ -65,7 +70,7 @@ jobs:
             exit 1
           fi
         env:
-          APP_ID: ${{ secrets.APP_ID }}
+          APP_ID: ${{ secrets.APP_ID || vars.APP_ID }}
 
       - name: Print the request for the current repository
         run: |
@@ -77,7 +82,7 @@ jobs:
           test "$actual" = "$expected" || { echo "::error::expected $expected, got $actual"; exit 1; }
           grep -q "current repository from git remote \"origin\"" "$RUNNER_TEMP/request.txt"
         env:
-          APP_ID: ${{ secrets.APP_ID }}
+          APP_ID: ${{ secrets.APP_ID || vars.APP_ID }}
 
       - name: Mint a scoped token into a file
         run: |
@@ -93,7 +98,7 @@ jobs:
           jq -e --arg r "$REPO" '[.repositories[] | ascii_downcase] == [$r | ascii_downcase]' "$sidecar"
           jq -e '.permissions == {contents: "read", metadata: "read"}' "$sidecar"
         env:
-          APP_ID: ${{ secrets.APP_ID }}
+          APP_ID: ${{ secrets.APP_ID || vars.APP_ID }}
 
       - name: The token reaches only this repository
         run: |
@@ -150,9 +155,14 @@ jobs:
 
       - name: Write private key
         run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_PRIVATE_KEY" ]; then
+            echo "::error::APP_ID and APP_PRIVATE_KEY are not available to this run. Add them under Settings > Secrets and variables > Actions as repository secrets (APP_ID may also be a repository variable); environment and Dependabot secrets are not visible here."
+            exit 1
+          fi
           umask 077
           printf "%s" "$APP_PRIVATE_KEY" > "$RUNNER_TEMP/app.pem"
         env:
+          APP_ID: ${{ secrets.APP_ID || vars.APP_ID }}
           APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Prepare a workspace like a user would
@@ -190,15 +200,20 @@ jobs:
       - name: Start the devcontainer
         run: devcontainer up --workspace-folder "$WS"
         env:
-          GH_TOKEN_APP_ID: ${{ secrets.APP_ID }}
+          GH_TOKEN_APP_ID: ${{ secrets.APP_ID || vars.APP_ID }}
           GH_TOKEN_KEY: ${{ runner.temp }}/app.pem
           GH_TOKEN_CMD: ${{ github.workspace }}/gh-token
 
       - name: Show the host side
         if: always()
         run: |
-          dir="$(dirname "$(find "$HOME/.cache/gh-token" -name token -type f | head -n 1)")"
-          echo "::add-mask::$(cat "$dir/token")"
+          token_file="$(find "$HOME/.cache/gh-token" -name token -type f 2>/dev/null | head -n 1)"
+          if [ -z "$token_file" ]; then
+            echo "no token directory was created"
+            exit 0
+          fi
+          dir="$(dirname "$token_file")"
+          echo "::add-mask::$(cat "$token_file")"
           echo "TOKEN_DIR=$dir" >> "$GITHUB_ENV"
           ls -la "$dir"
           cat "$dir/token.json" "$dir/refresh.log"
