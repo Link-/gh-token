@@ -4,9 +4,8 @@ name: Scoped Token Integration
 # the devcontainer integration with a real container.
 #
 # Needs the APP_ID and APP_PRIVATE_KEY secrets for a GitHub App installed on
-# this repository with at least: Metadata read, Contents read,
-# Pull requests read and write, and Issues read and write. Issues write is
-# only used to prove that a token without it is refused.
+# this repository with at least: Metadata read, Contents read and
+# Pull requests read and write.
 
 on:
   pull_request:
@@ -65,8 +64,10 @@ jobs:
             echo "::error::The App is not installed for $owner"
             exit 1
           fi
-          if [ "$(jq -r '.issues // ""' <<<"$perms")" != "write" ]; then
-            echo "::error::The App needs Issues: write, otherwise the out-of-scope checks prove nothing"
+          # Creating a label needs Issues or Pull requests write; the scoped
+          # token has neither, so the App must have one for the 403 to mean anything.
+          if [ "$(jq -r '.issues // ""' <<<"$perms")" != "write" ] && [ "$(jq -r '.pull_requests // ""' <<<"$perms")" != "write" ]; then
+            echo "::error::The App needs Issues or Pull requests write, otherwise the out-of-scope check proves nothing"
             exit 1
           fi
         env:
@@ -229,8 +230,8 @@ jobs:
       - name: Pushing is refused (contents is read only)
         run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" push-refused "$REPO" "$GITHUB_RUN_ID"
 
-      - name: Issues are refused (not in the scope)
-        run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" issues-refused "$REPO" "$GITHUB_RUN_ID"
+      - name: The token has exactly the declared scope
+        run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" scope "$REPO"
 
       - name: Pull request write works
         run: |

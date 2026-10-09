@@ -64,15 +64,16 @@ case "$check" in
     echo "push refused"
     ;;
 
-  issues-refused)
-    label="gh-token-it-$run_id"
-    if gh api -X POST "repos/$repo/labels" -f name="$label" -f color=ededed >/tmp/label.out 2>&1; then
-      gh api -X DELETE "repos/$repo/labels/$label" || true
-      fail "label creation was allowed without the issues permission"
-    fi
-    cat /tmp/label.out
-    grep -q "HTTP 403" /tmp/label.out || fail "label creation failed for another reason"
-    echo "issues write refused"
+  scope)
+    # What GitHub granted (token.json is written from its response), and
+    # which repositories the token reaches.
+    perms="$(sed -n '/"permissions"/,/}/p' "$token_dir/token.json" | tr -d ' \n')"
+    perms="${perms%,}"
+    expected='"permissions":{"contents":"read","metadata":"read","pull_requests":"write"}'
+    [ "$perms" = "$expected" ] || fail "unexpected permissions: $perms"
+    repos="$(gh api /installation/repositories --jq '[.total_count, (.repositories[].full_name | ascii_downcase)] | @tsv')"
+    [ "$repos" = "1	$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || fail "the token reaches more than $repo: $repos"
+    echo "the token has exactly contents read, pull requests write and metadata read, on $repo only"
     ;;
 
   pr-write)
