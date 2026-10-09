@@ -105,6 +105,23 @@ func GenerateFlags() []cli.Flag {
 			Usage: "Write the token atomically to this file (mode 0600) instead of stdout, plus metadata to <file>.json. Mount its directory, not the file, into containers",
 		},
 		&cli.BoolFlag{
+			Name:  "refresh",
+			Usage: "Stay running and re-mint the token into --output-file before it expires",
+		},
+		&cli.DurationFlag{
+			Name:  "refresh-before",
+			Usage: "With --refresh, how long before expiry to re-mint",
+			Value: defaultRefreshBefore,
+		},
+		&cli.BoolFlag{
+			Name:  "revoke-on-exit",
+			Usage: "With --refresh, revoke the current token on SIGINT or SIGTERM",
+		},
+		&cli.StringFlag{
+			Name:  "pid-file",
+			Usage: "With --refresh, a pid file that keeps a second refresher with the same scope from starting",
+		},
+		&cli.BoolFlag{
 			Name:  "verify-installation",
 			Usage: "With --installation-id and a scope, check that the ID matches the installation found for the scope's owner",
 		},

@@ -2,6 +2,8 @@ package internal
 
 import (
 	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,6 +24,11 @@ var (
 
 var bareRepoPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
+const (
+	defaultRefreshBefore = 10 * time.Minute
+	maxRefreshBefore     = 50 * time.Minute
+)
+
 // scopeOptions holds the flags that downscope the token or change where it
 // is written. None of them set means the original generate behaviour.
 type scopeOptions struct {
@@ -36,6 +43,10 @@ type scopeOptions struct {
 	gitDir             string
 	gitRemote          string
 	outputFile         string
+	refresh            bool
+	refreshBefore      time.Duration
+	revokeOnExit       bool
+	pidFile            string
 }
 
 func readScopeOptions(c *cli.Context) *scopeOptions {
@@ -51,6 +62,10 @@ func readScopeOptions(c *cli.Context) *scopeOptions {
 		gitDir:             c.String("git-dir"),
 		gitRemote:          c.String("git-remote"),
 		outputFile:         c.String("output-file"),
+		refresh:            c.Bool("refresh"),
+		refreshBefore:      c.Duration("refresh-before"),
+		revokeOnExit:       c.Bool("revoke-on-exit"),
+		pidFile:            c.String("pid-file"),
 	}
 }
 
@@ -58,11 +73,23 @@ func readScopeOptions(c *cli.Context) *scopeOptions {
 func (o *scopeOptions) active() bool {
 	return o.scopeFile != "" || len(o.repositories) > 0 || len(o.permissions) > 0 ||
 		o.mergePermissions || o.printRequest || o.verifyInstallation || o.currentRepo ||
-		o.outputFile != ""
+		o.outputFile != "" || o.refresh || o.revokeOnExit || o.pidFile != ""
 }
 
 // validate checks flag combinations that don't need any I/O.
 func (o *scopeOptions) validate(installationID string, tokenOnly bool) error {
+	if o.refreshBefore == 0 {
+		o.refreshBefore = defaultRefreshBefore
+	}
+	if o.refresh && o.outputFile == "" {
+		return fmt.Errorf("--refresh requires --output-file")
+	}
+	if (o.revokeOnExit || o.pidFile != "") && !o.refresh {
+		return fmt.Errorf("--revoke-on-exit and --pid-file require --refresh")
+	}
+	if o.refreshBefore < 0 || o.refreshBefore > maxRefreshBefore {
+		return fmt.Errorf("--refresh-before must be between 0 and %s; tokens live for one hour", maxRefreshBefore)
+	}
 	if o.outputFile != "" && tokenOnly {
 		return fmt.Errorf("--output-file cannot be combined with --token-only; the file always holds just the token")
 	}
@@ -275,6 +302,18 @@ func (g *scopedGeneration) run() error {
 		}
 	}
 
+	if g.opts.refresh && g.opts.pidFile != "" && !g.opts.printRequest {
+		running, release, err := acquirePIDFile(g.opts.pidFile, g.scopeHash(scope))
+		if err != nil {
+			return err
+		}
+		if running {
+			g.log("a refresher with the same scope is already running for %s; nothing to do", g.opts.pidFile)
+			return nil
+		}
+		defer release()
+	}
+
 	installationID, installationSource, err := g.resolveInstallation(scope)
 	if err != nil {
 		return err
@@ -309,6 +348,9 @@ func (g *scopedGeneration) run() error {
 			return err
 		}
 		g.log("token written to %s, expires at %s", g.opts.outputFile, token.GetExpiresAt().UTC().Format(time.RFC3339))
+		if g.opts.refresh {
+			return g.refreshLoop(installationID, body, token)
+		}
 		return nil
 	}
 
@@ -350,6 +392,58 @@ func mintToken(hostname, jwt, installationID string, body *accessTokenRequest) (
 	}
 
 	return &mintedToken{InstallationToken: &token, details: &details}, nil
+}
+
+// refreshLoop keeps the output file fresh until interrupted. body is fixed
+// here: the scope file and git remote are not re-read, so changes inside the
+// workspace cannot widen later tokens.
+func (g *scopedGeneration) refreshLoop(installationID string, body *accessTokenRequest, first *mintedToken) error {
+	ctx, cancel := newRefreshContext()
+	defer cancel()
+
+	r := &refresher{
+		mint: func() (*mintedToken, error) {
+			jwt, err := generateJWT(g.appID, g.jwtExpiry, g.privateKey)
+			if err != nil {
+				return nil, fmt.Errorf("failed generating JWT: %w", err)
+			}
+			return mintToken(g.hostname, jwt, installationID, body)
+		},
+		write:         func(t *mintedToken) error { return writeTokenFiles(g.opts.outputFile, t) },
+		now:           refreshNow,
+		wait:          refreshWait,
+		jitter:        randomJitter,
+		refreshBefore: g.opts.refreshBefore,
+		log:           g.log,
+	}
+	if g.opts.revokeOnExit {
+		r.revoke = func(token string) error { return revokeToken(g.hostname, token) }
+	}
+	g.log("refreshing %s %s before expiry; stop with SIGINT or SIGTERM", g.opts.outputFile, g.opts.refreshBefore)
+
+	return r.run(ctx, first)
+}
+
+// scopeHash identifies what a refresher mints, so a second refresher for
+// the same pid file can tell whether the running one is equivalent.
+func (g *scopedGeneration) scopeHash(scope *ScopeRequest) string {
+	type hashed struct {
+		Hostname       string
+		AppID          string
+		InstallationID string
+		OutputFile     string
+		Owner          string
+		Repositories   []string
+		Permissions    map[string]string
+		ReadAll        bool
+	}
+	h := hashed{Hostname: g.hostname, AppID: g.appID, InstallationID: g.installationID, OutputFile: g.opts.outputFile}
+	if scope != nil {
+		h.Owner, h.Repositories, h.Permissions, h.ReadAll = strings.ToLower(scope.Owner), scope.Repositories, scope.Permissions, scope.ReadAll
+	}
+	b, _ := json.Marshal(h)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 // resolveInstallation returns the installation ID and a description of how
