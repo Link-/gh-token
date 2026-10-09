@@ -219,7 +219,9 @@ jobs:
           cat "$dir/token.json" "$dir/refresh.log"
 
       - name: The key stays on the host
-        run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" no-key "$REPO"
+        run: |
+          key_line_hash="$(sed -n '2p' "$RUNNER_TEMP/app.pem" | tr -d '\r' | tr -d '\n' | sha256sum | cut -d' ' -f1)"
+          devcontainer exec --workspace-folder "$WS" bash "$CHECKS" no-key "$REPO" "$key_line_hash"
 
       - name: gh and git use the scoped token
         run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" gh-and-git "$REPO"

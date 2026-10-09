@@ -4,6 +4,7 @@
 # contents: read and pull_requests: write on the clone's repository.
 #
 # Usage: in-container.sh <check> <owner/repo> [run-id] [pr-number]
+#        in-container.sh no-key <owner/repo> <sha256 of the key's first base64 line>
 set -euo pipefail
 
 check="${1:?check}"
@@ -19,10 +20,22 @@ fail() {
 
 case "$check" in
   no-key)
-    if grep -rIl "PRIVATE KEY-----" "$token_dir" "$PWD" "$HOME" 2>/dev/null; then
-      fail "private key material found in the container"
-    fi
-    echo "no private key in the container"
+    # $3 is the SHA-256 of the first base64 line of the App's key, so the
+    # key itself never enters the container. Other keys (test fixtures,
+    # documentation) don't match.
+    key_line_hash="${3:?sha256 of the first base64 line of the key}"
+    found=0
+    while IFS= read -r -d '' file; do
+      while IFS= read -r line; do
+        line="${line%$'\r'}"
+        if [ "$(printf '%s' "$line" | sha256sum | cut -d' ' -f1)" = "$key_line_hash" ]; then
+          echo "the App's private key is in $file" >&2
+          found=1
+        fi
+      done <"$file"
+    done < <(grep -rIlZ -e "PRIVATE KEY-----" "$token_dir" "$PWD" "$HOME" 2>/dev/null || true)
+    [ "$found" = 0 ] || fail "the App's private key is in the container"
+    echo "the App's private key is not in the container"
     ;;
 
   gh-and-git)
