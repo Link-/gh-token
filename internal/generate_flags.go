@@ -62,5 +62,32 @@ func GenerateFlags() []cli.Flag {
 			Aliases: []string{"s"},
 			Value:   false,
 		},
+		&cli.StringFlag{
+			Name:    "scope-file",
+			Usage:   "Path to a scope file or devcontainer.json declaring repositories and permissions (Codespaces format) to downscope the token to",
+			Aliases: []string{"f"},
+		},
+		&cli.StringSliceFlag{
+			Name:    "repository",
+			Usage:   "Repository to downscope the token to, as owner/repo (or a bare name with --installation-id). Repeatable",
+			Aliases: []string{"r"},
+		},
+		&cli.StringSliceFlag{
+			Name:    "permission",
+			Usage:   "Permission for the token, as name=level (read, write or admin), or read-all / write-all. Repeatable",
+			Aliases: []string{"p"},
+		},
+		&cli.BoolFlag{
+			Name:  "merge-permissions",
+			Usage: "Allow repositories with different permissions by giving the token the union of them. This widens access",
+		},
+		&cli.BoolFlag{
+			Name:  "print-request",
+			Usage: "Print the resolved installation ID and the access token request body, then exit without minting a token",
+		},
+		&cli.BoolFlag{
+			Name:  "verify-installation",
+			Usage: "With --installation-id and a scope, check that the ID matches the installation found for the scope's owner",
+		},
 	}
 }

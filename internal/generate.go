@@ -39,6 +39,14 @@ func Generate(c *cli.Context) error {
 		hostname = strings.TrimSuffix(endpoint, "/")
 	}
 
+	opts := readScopeOptions(c)
+	if printJWT && opts.active() {
+		return fmt.Errorf("--jwt cannot be combined with scope or output flags")
+	}
+	if err := opts.validate(installationID); err != nil {
+		return err
+	}
+
 	if jwtExpiry < 1 || jwtExpiry > 10 {
 		jwtExpiry = 10
 	}
@@ -68,6 +76,21 @@ func Generate(c *cli.Context) error {
 		}
 
 		return nil
+	}
+
+	if opts.active() {
+		g := &scopedGeneration{
+			opts:           opts,
+			hostname:       hostname,
+			appID:          appID,
+			installationID: installationID,
+			jwtExpiry:      jwtExpiry,
+			privateKey:     privateKey,
+			jwt:            jsonWebToken,
+			tokenOnly:      tokenOnly,
+			silent:         silent,
+		}
+		return g.run()
 	}
 
 	if installationID == "" {
@@ -149,6 +172,23 @@ func (r *accessTokenRequest) isEmpty() bool {
 }
 
 func generateToken(hostname, jwt, installationID string, body *accessTokenRequest) (*github.InstallationToken, error) {
+	raw, err := requestAccessToken(hostname, jwt, installationID, body)
+	if err != nil {
+		return nil, err
+	}
+
+	var response *github.InstallationToken
+	err = json.Unmarshal(raw, &response)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshal response body: %w", err)
+	}
+
+	return response, nil
+}
+
+// requestAccessToken POSTs to the access token endpoint and returns the raw
+// response body.
+func requestAccessToken(hostname, jwt, installationID string, body *accessTokenRequest) ([]byte, error) {
 	endpoint := fmt.Sprintf("https://%s/app/installations/%s/access_tokens", hostname, installationID)
 
 	var reqBody io.Reader
@@ -181,16 +221,10 @@ func generateToken(hostname, jwt, installationID string, body *accessTokenReques
 		return nil, unexpectedStatusError(resp)
 	}
 
-	var response *github.InstallationToken
-	bytes, err := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read response body: %w", err)
 	}
 
-	err = json.Unmarshal(bytes, &response)
-	if err != nil {
-		return nil, fmt.Errorf("unable to unmarshal response body: %w", err)
-	}
-
-	return response, nil
+	return raw, nil
 }
