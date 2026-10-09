@@ -129,8 +129,13 @@ jobs:
           [ -s "$RUNNER_TEMP/tokens/token" ] || exit 0
           token="$(cat "$RUNNER_TEMP/tokens/token")"
           ./gh-token revoke -t "$token"
-          status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.github.com/installation/repositories")"
-          test "$status" = 401 || { echo "::error::expected 401 after revoking, got $status"; exit 1; }
+          # Revocation takes a moment to apply everywhere; allow up to a minute.
+          for _ in $(seq 1 30); do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.github.com/installation/repositories")"
+            [ "$status" = 401 ] && break
+            sleep 2
+          done
+          test "$status" = 401 || { echo "::error::expected 401 after revoking, still $status after a minute"; exit 1; }
 
   devcontainer:
     name: Devcontainer with pull request permissions
