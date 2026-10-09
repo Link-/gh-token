@@ -31,6 +31,10 @@ type scopeOptions struct {
 	mergePermissions   bool
 	printRequest       bool
 	verifyInstallation bool
+	currentRepo        bool
+	currentRepoSet     bool
+	gitDir             string
+	gitRemote          string
 }
 
 func readScopeOptions(c *cli.Context) *scopeOptions {
@@ -41,13 +45,17 @@ func readScopeOptions(c *cli.Context) *scopeOptions {
 		mergePermissions:   c.Bool("merge-permissions"),
 		printRequest:       c.Bool("print-request"),
 		verifyInstallation: c.Bool("verify-installation"),
+		currentRepo:        c.Bool("current-repo"),
+		currentRepoSet:     c.IsSet("current-repo"),
+		gitDir:             c.String("git-dir"),
+		gitRemote:          c.String("git-remote"),
 	}
 }
 
 // active reports whether any of the new flags is in use.
 func (o *scopeOptions) active() bool {
 	return o.scopeFile != "" || len(o.repositories) > 0 || len(o.permissions) > 0 ||
-		o.mergePermissions || o.printRequest || o.verifyInstallation
+		o.mergePermissions || o.printRequest || o.verifyInstallation || o.currentRepo
 }
 
 // validate checks flag combinations that don't need any I/O.
@@ -58,11 +66,8 @@ func (o *scopeOptions) validate(installationID string) error {
 	if len(o.repositories) > 0 && len(o.permissions) == 0 {
 		return fmt.Errorf("--repository requires at least one --permission (name=level, read-all or write-all)")
 	}
-	if len(o.permissions) > 0 && o.scopeFile == "" && len(o.repositories) == 0 {
-		return fmt.Errorf("--permission requires --repository or --scope-file")
-	}
-	if o.scopeFile != "" && len(o.permissions) > 0 {
-		return fmt.Errorf("--permission cannot be combined with --scope-file; declare permissions in the scope file")
+	if len(o.permissions) > 0 && o.scopeFile == "" && len(o.repositories) == 0 && !o.currentRepo {
+		return fmt.Errorf("--permission requires --repository, --current-repo or --scope-file")
 	}
 	for _, r := range o.repositories {
 		if !strings.Contains(r, "/") && installationID == "" {
@@ -105,19 +110,24 @@ func parsePermissionFlags(values []string) (*Permissions, error) {
 	return p, nil
 }
 
-// buildScope assembles the scope from a file or the ad hoc flags. It returns
-// nil when no scope was requested (the token covers the whole installation).
-func (o *scopeOptions) buildScope() (*ScopeFile, error) {
+// buildScope assembles the scope from a file or the ad hoc flags, adding the
+// clone's own repository when --current-repo is in effect. It returns nil
+// when no scope was requested (the token covers the whole installation).
+func (o *scopeOptions) buildScope(apiHostname string) (*ScopeFile, error) {
 	flagPerms, err := parsePermissionFlags(o.permissions)
 	if err != nil {
 		return nil, err
 	}
 
+	var s *ScopeFile
 	switch {
 	case o.scopeFile != "":
-		return ReadScopeFile(o.scopeFile)
+		s, err = ReadScopeFile(o.scopeFile)
+		if err != nil {
+			return nil, err
+		}
 	case len(o.repositories) > 0:
-		s := &ScopeFile{}
+		s = &ScopeFile{}
 		for _, r := range o.repositories {
 			var entry ScopeEntry
 			if strings.Contains(r, "/") {
@@ -133,10 +143,87 @@ func (o *scopeOptions) buildScope() (*ScopeFile, error) {
 			}
 			s.Entries = append(s.Entries, entry)
 		}
-		return s, nil
+	case o.currentRepo:
+		s = &ScopeFile{}
 	default:
 		return nil, nil
 	}
+
+	// Like Codespaces, a devcontainer file implies the clone's own repo.
+	currentRepo := o.currentRepo
+	if !o.currentRepoSet && o.scopeFile != "" {
+		currentRepo = s.Devcontainer
+	}
+
+	if !currentRepo {
+		if o.scopeFile != "" && flagPerms != nil {
+			return nil, fmt.Errorf("--permission with --scope-file only sets the current repository's permissions, but --current-repo is off")
+		}
+		return s, nil
+	}
+
+	owner, repo, err := currentRepository(apiHostname, o.gitDir, o.gitRemote)
+	if err != nil {
+		return nil, fmt.Errorf("failed resolving the current repository: %w", err)
+	}
+	source := fmt.Sprintf("git remote %q", o.gitRemote)
+
+	// With ad hoc flags the --permission set applies to every repository.
+	var fileFlagPerms *Permissions
+	if o.scopeFile != "" {
+		fileFlagPerms = flagPerms
+	}
+	if err := addCurrentRepository(s, owner, repo, source, fileFlagPerms, flagPerms); err != nil {
+		return nil, err
+	}
+
+	return s, nil
+}
+
+// addCurrentRepository adds the clone's repository to the scope. Its
+// permissions come from, in order: an explicit entry in the scope,
+// customizations.gh-token.currentRepository, --permission flags, or an
+// owner/* entry covering it. There is deliberately no default: an implicit
+// default is how scopes silently grow.
+//
+// conflictPerms is --permission given together with a scope file, which may
+// only supply permissions the file doesn't declare; perms is the
+// --permission set to use for the current repository.
+func addCurrentRepository(s *ScopeFile, owner, repo, source string, conflictPerms, perms *Permissions) error {
+	name := owner + "/" + repo
+
+	for i, e := range s.Entries {
+		if strings.EqualFold(e.Owner, owner) && strings.EqualFold(e.Repo, repo) {
+			if conflictPerms != nil {
+				return fmt.Errorf("--permission conflicts with the scope file, which already declares permissions for the current repository %s", name)
+			}
+			s.Entries[i].Source = fmt.Sprintf("%s; current repository from %s", e.Source, source)
+			return nil
+		}
+	}
+
+	entry := ScopeEntry{Owner: owner, Repo: repo, Source: "current repository from " + source}
+	switch {
+	case s.CurrentRepository != nil:
+		if conflictPerms != nil {
+			return fmt.Errorf("--permission conflicts with customizations.gh-token.currentRepository in the scope file")
+		}
+		entry.Permissions = *s.CurrentRepository
+	case perms != nil:
+		entry.Permissions = *perms
+	default:
+		for i, e := range s.Entries {
+			if e.Repo == "*" && strings.EqualFold(e.Owner, owner) {
+				s.Entries[i].Source = fmt.Sprintf("%s; covers the current repository %s from %s", e.Source, name, source)
+				return nil
+			}
+		}
+		return fmt.Errorf("no permissions declared for current repository %s (from %s); add customizations.gh-token.currentRepository or an entry under repositories", name, source)
+	}
+
+	s.Entries = append(s.Entries, entry)
+
+	return nil
 }
 
 // scopedGeneration carries everything needed to mint a token for the new
@@ -160,7 +247,7 @@ func (g *scopedGeneration) warn(format string, args ...any) {
 }
 
 func (g *scopedGeneration) run() error {
-	scopeFile, err := g.opts.buildScope()
+	scopeFile, err := g.opts.buildScope(g.hostname)
 	if err != nil {
 		return err
 	}

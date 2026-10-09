@@ -233,7 +233,7 @@ func TestGenerateScopedErrors(t *testing.T) {
 		{
 			name:          "permission_alone",
 			args:          []string{"-p", "contents=read"},
-			expectedError: "--permission requires --repository or --scope-file",
+			expectedError: "--permission requires --repository, --current-repo or --scope-file",
 		},
 		{
 			name:          "bare_repository_without_installation_id",
@@ -307,4 +307,204 @@ func TestGenerateMergePermissionsWarns(t *testing.T) {
 	assert.Contains(t, out, `{"repositories":["app","shared-charts"],"permissions":{"contents":"write","issues":"read","pull_requests":"write"}}`)
 	assert.Contains(t, errOut, "Warning: --merge-permissions: my-org/app receives permissions it did not declare: issues=read")
 	assert.Contains(t, errOut, "Warning: --merge-permissions: my-org/shared-charts receives permissions it did not declare: contents=write (declared read), pull_requests=write")
+}
+
+func TestGenerateCurrentRepo(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	orgClone := initGitRepo(t, map[string]string{"origin": "git@github.com:my-org/app.git"})
+	forkClone := initGitRepo(t, map[string]string{
+		"origin":   "https://github.com/my-user/some-fork.git",
+		"upstream": "https://github.com/my-org/some-fork.git",
+	})
+
+	identicalDevcontainer := writeTempFile(t, "devcontainer.json", `{
+		// current repo plus one extra, identical permissions
+		"customizations": {
+			"codespaces": {"repositories": {"my-org/shared": {"permissions": {"contents": "write"}}}},
+			"gh-token": {"currentRepository": {"permissions": {"contents": "write"}}},
+		},
+	}`)
+	explicitDevcontainer := writeTempFile(t, "devcontainer.json", `{
+		"customizations": {
+			"codespaces": {"repositories": {
+				"my-org/shared": {"permissions": {"issues": "read"}},
+				"My-Org/App": {"permissions": {"issues": "read"}}
+			}},
+			"gh-token": {"currentRepository": {"permissions": {"contents": "write"}}}
+		}
+	}`)
+	noCurrentDevcontainer := writeTempFile(t, "devcontainer.json", `{
+		"customizations": {"codespaces": {"repositories": {"my-org/shared": {"permissions": {"contents": "read"}}}}}
+	}`)
+	wildcardDevcontainer := writeTempFile(t, "devcontainer.json", `{
+		"customizations": {"codespaces": {"repositories": {"my-org/*": {"permissions": {"contents": "read"}}}}}
+	}`)
+	plainFile := writeTempFile(t, "scope.json", `{"repositories": {"my-org/shared": {"permissions": {"contents": "read"}}}}`)
+
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-org/shared/installation", httpmock.NewStringResponder(200, `{"id": 1}`))
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-org/shared-charts/installation", httpmock.NewStringResponder(200, `{"id": 1}`))
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-org/app/installation", httpmock.NewStringResponder(200, `{"id": 1}`))
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/My-Org/App/installation", httpmock.NewStringResponder(200, `{"id": 1}`))
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-user/some-fork/installation", httpmock.NewStringResponder(200, `{"id": 2}`))
+	httpmock.RegisterResponder("GET", "https://api.github.com/orgs/my-org/installation", httpmock.NewStringResponder(200, `{"id": 1}`))
+
+	tests := []struct {
+		name          string
+		args          []string
+		expectedOut   []string
+		expectedError []string
+	}{
+		{
+			name: "devcontainer_implies_current_repo",
+			args: []string{"-f", identicalDevcontainer, "--git-dir", orgClone},
+			expectedOut: []string{
+				"# installation: 1 (looked up for my-org)\n",
+				"# repository: my-org/shared (scope file)\n",
+				"# repository: my-org/app (current repository from git remote \"origin\")\n",
+				`{"repositories":["shared","app"],"permissions":{"contents":"write"}}`,
+			},
+		},
+		{
+			name: "explicit_entry_overrides_current_repository",
+			args: []string{"-f", explicitDevcontainer, "--git-dir", orgClone},
+			expectedOut: []string{
+				"# repository: My-Org/App (scope file; current repository from git remote \"origin\")\n",
+				`{"repositories":["App","shared"],"permissions":{"issues":"read"}}`,
+			},
+		},
+		{
+			name: "wildcard_covers_current_repo",
+			args: []string{"-f", wildcardDevcontainer, "--git-dir", orgClone},
+			expectedOut: []string{
+				"# repository: my-org/* (scope file; covers the current repository my-org/app from git remote \"origin\")\n",
+				`{"permissions":{"contents":"read"}}`,
+			},
+		},
+		{
+			name:          "differing_current_repository_permissions_need_merge",
+			args:          []string{"-f", "fixtures/scope-devcontainer-current-repo.jsonc", "--git-dir", orgClone},
+			expectedError: []string{"repositories declare different permissions", "my-org/app (from current repository from git remote \"origin\")"},
+		},
+		{
+			name: "differing_current_repository_permissions_merged",
+			args: []string{"-f", "fixtures/scope-devcontainer-current-repo.jsonc", "--git-dir", orgClone, "--merge-permissions"},
+			expectedOut: []string{
+				`{"repositories":["shared-charts","app"],"permissions":{"actions":"read","checks":"read","contents":"write","issues":"write","pull_requests":"write"}}`,
+			},
+		},
+		{
+			name: "current_repo_disabled",
+			args: []string{"-f", identicalDevcontainer, "--git-dir", orgClone, "--current-repo=false"},
+			expectedOut: []string{
+				`{"repositories":["shared"],"permissions":{"contents":"write"}}`,
+			},
+		},
+		{
+			name:          "no_permissions_for_current_repo",
+			args:          []string{"-f", noCurrentDevcontainer, "--git-dir", orgClone},
+			expectedError: []string{"no permissions declared for current repository my-org/app (from git remote \"origin\"); add customizations.gh-token.currentRepository or an entry under repositories"},
+		},
+		{
+			name: "permission_flag_supplies_current_repo_permissions",
+			args: []string{"-f", noCurrentDevcontainer, "--git-dir", orgClone, "-p", "contents=read"},
+			expectedOut: []string{
+				`{"repositories":["shared","app"],"permissions":{"contents":"read"}}`,
+			},
+		},
+		{
+			name:          "permission_flag_conflicts_with_current_repository",
+			args:          []string{"-f", identicalDevcontainer, "--git-dir", orgClone, "-p", "contents=read"},
+			expectedError: []string{"--permission conflicts with customizations.gh-token.currentRepository"},
+		},
+		{
+			name:          "permission_flag_conflicts_with_explicit_entry",
+			args:          []string{"-f", explicitDevcontainer, "--git-dir", orgClone, "-p", "contents=read"},
+			expectedError: []string{"--permission conflicts with the scope file, which already declares permissions for the current repository my-org/app"},
+		},
+		{
+			name:          "permission_flag_with_current_repo_off",
+			args:          []string{"-f", plainFile, "-p", "contents=read"},
+			expectedError: []string{"--permission with --scope-file only sets the current repository's permissions, but --current-repo is off"},
+		},
+		{
+			name: "plain_file_does_not_imply_current_repo",
+			args: []string{"-f", plainFile, "--git-dir", orgClone},
+			expectedOut: []string{
+				`{"repositories":["shared"],"permissions":{"contents":"read"}}`,
+			},
+		},
+		{
+			name: "plain_file_with_explicit_current_repo",
+			args: []string{"-f", plainFile, "--git-dir", orgClone, "-c", "-p", "contents=read"},
+			expectedOut: []string{
+				`{"repositories":["shared","app"],"permissions":{"contents":"read"}}`,
+			},
+		},
+		{
+			name: "current_repo_without_file",
+			args: []string{"--current-repo", "--git-dir", forkClone, "-p", "contents=write", "-p", "pull_requests=write"},
+			expectedOut: []string{
+				"# installation: 2 (looked up for my-user)\n",
+				"# repository: my-user/some-fork (current repository from git remote \"origin\")\n",
+				`{"repositories":["some-fork"],"permissions":{"contents":"write","pull_requests":"write"}}`,
+			},
+		},
+		{
+			name: "current_repo_with_other_remote",
+			args: []string{"-c", "--git-dir", forkClone, "--git-remote", "upstream", "-p", "contents=read", "-l", "3"},
+			expectedOut: []string{
+				"# repository: my-org/some-fork (current repository from git remote \"upstream\")\n",
+			},
+		},
+		{
+			name: "current_repo_with_repository_flags",
+			args: []string{"-c", "--git-dir", orgClone, "-r", "my-org/shared", "-p", "contents=read"},
+			expectedOut: []string{
+				`{"repositories":["shared","app"],"permissions":{"contents":"read"}}`,
+			},
+		},
+		{
+			name:          "current_repo_without_permissions",
+			args:          []string{"-c", "--git-dir", orgClone},
+			expectedError: []string{"no permissions declared for current repository my-org/app"},
+		},
+		{
+			name: "fork_plus_org_repo_is_multi_owner",
+			args: []string{"-f", identicalDevcontainer, "--git-dir", forkClone},
+			expectedError: []string{
+				"repositories span multiple owners",
+				"my-org: my-org/shared",
+				"my-user: my-user/some-fork (from current repository from git remote \"origin\")",
+			},
+		},
+		{
+			name:          "not_a_git_repo",
+			args:          []string{"-c", "--git-dir", t.TempDir(), "-p", "contents=read"},
+			expectedError: []string{"failed resolving the current repository: unable to read git remote \"origin\""},
+		},
+		{
+			name:          "host_mismatch",
+			args:          []string{"-c", "--git-dir", orgClone, "-p", "contents=read", "-o", "ghes.example.com"},
+			expectedError: []string{"points at github.com, but tokens are generated for ghes.example.com"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, _, err := runGenerate(t, append([]string{"-i", "123", "-k", testKey, "--print-request"}, tt.args...)...)
+			if len(tt.expectedError) > 0 {
+				require.Error(t, err)
+				for _, msg := range tt.expectedError {
+					assert.Contains(t, err.Error(), msg)
+				}
+				return
+			}
+			require.NoError(t, err)
+			for _, msg := range tt.expectedOut {
+				assert.Contains(t, out, msg)
+			}
+		})
+	}
 }

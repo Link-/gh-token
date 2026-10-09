@@ -86,6 +86,21 @@ func GenerateFlags() []cli.Flag {
 			Usage: "Print the resolved installation ID and the access token request body, then exit without minting a token",
 		},
 		&cli.BoolFlag{
+			Name:    "current-repo",
+			Usage:   "Include the clone's own repository, read from its git remote (like Codespaces). Defaults to true for devcontainer-shaped scope files",
+			Aliases: []string{"c"},
+		},
+		&cli.StringFlag{
+			Name:  "git-dir",
+			Usage: "Clone to read the current repository from",
+			Value: ".",
+		},
+		&cli.StringFlag{
+			Name:  "git-remote",
+			Usage: "Git remote to read the current repository from",
+			Value: "origin",
+		},
+		&cli.BoolFlag{
 			Name:  "verify-installation",
 			Usage: "With --installation-id and a scope, check that the ID matches the installation found for the scope's owner",
 		},
