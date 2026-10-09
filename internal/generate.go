@@ -118,7 +118,7 @@ func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 	}()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return "", unexpectedStatusError(resp)
 	}
 
 	var response []github.Installation
@@ -137,14 +137,10 @@ func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 
 func generateToken(hostname, jwt, installationID string) (*github.InstallationToken, error) {
 	endpoint := fmt.Sprintf("https://%s/app/installations/%s/access_tokens", hostname, installationID)
-	req, err := http.NewRequest("POST", endpoint, nil)
+	req, err := newAPIRequest("POST", endpoint, jwt, nil)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create POST request to %s: %w", endpoint, err)
+		return nil, err
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", jwt))
-	req.Header.Add("Accept", "application/vnd.github+json")
-	req.Header.Add("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Add("User-Agent", "Link-/gh-token")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -156,7 +152,7 @@ func generateToken(hostname, jwt, installationID string) (*github.InstallationTo
 	}()
 
 	if resp.StatusCode != 201 {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, unexpectedStatusError(resp)
 	}
 
 	var response *github.InstallationToken

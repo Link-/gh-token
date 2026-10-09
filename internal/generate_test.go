@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -270,7 +271,7 @@ func TestRetrieveDefaultInstallationID(t *testing.T) {
 			responseCode:   404,
 			responseBody:   `{"message": "Not Found"}`,
 			expectedResult: "",
-			expectedError:  "unexpected status code: 404",
+			expectedError:  `unexpected status code: 404: {"message": "Not Found"}`,
 		},
 		{
 			name:           "invalid_json_response",
@@ -344,7 +345,7 @@ func TestGenerateToken(t *testing.T) {
 			installationID: "12345",
 			responseCode:   403,
 			responseBody:   `{"message": "Forbidden"}`,
-			expectedError:  "unexpected status code: 403",
+			expectedError:  `unexpected status code: 403: {"message": "Forbidden"}`,
 		},
 		{
 			name:           "invalid_json_response",
@@ -563,4 +564,26 @@ func TestGenerateWithOutputFormats(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnexpectedStatusErrorBody(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	endpoint := "https://api.github.com/app/installations/12345/access_tokens"
+
+	t.Run("empty_body", func(t *testing.T) {
+		httpmock.Reset()
+		httpmock.RegisterResponder("POST", endpoint, httpmock.NewStringResponder(500, ""))
+		_, err := generateToken("api.github.com", "test.jwt.token", "12345")
+		assert.EqualError(t, err, "unexpected status code: 500")
+	})
+
+	t.Run("body_is_truncated", func(t *testing.T) {
+		httpmock.Reset()
+		long := strings.Repeat("x", maxErrorBodyBytes+100)
+		httpmock.RegisterResponder("POST", endpoint, httpmock.NewStringResponder(422, long))
+		_, err := generateToken("api.github.com", "test.jwt.token", "12345")
+		assert.EqualError(t, err, "unexpected status code: 422: "+long[:maxErrorBodyBytes])
+	})
 }
