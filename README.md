@@ -443,11 +443,18 @@ GitHub Codespaces gives the code in a codespace a token scoped to what `devconta
 
 1. In your VS Code **user** settings, turn off forwarding of the host's git credentials into containers: `"dev.containers.gitCredentialHelperConfigLocation": "none"`.
 
-1. Open the folder in the container. Inside it, `gh auth status`, `gh pr create` and `git push` use the scoped token.
+1. Open the folder in the container. Inside it, `gh` commands such as `gh pr create`, and `git push`, use the scoped token.
 
 The [devcontainer specification](https://containers.dev/implementors/json_reference/#variables-in-devcontainerjson) substitutes `${devcontainerId}` in both `initializeCommand` and `mounts`, so the host-side directory and the mount source are the same path. If your tool doesn't substitute it, `host-init.sh` falls back to `${XDG_RUNTIME_DIR:-$HOME/.cache}/gh-token/<hash of the workspace path>` and prints the path; use that fixed path as the mount source instead. `${localEnv:HOME}` is empty on Windows hosts; use `${localEnv:USERPROFILE}` there.
 
 Different permissions for the clone and the extra repositories (for example `contents: write` on the clone but `contents: read` on a shared repository) can't be expressed in one token. Either align them as above, or accept the union by adding `--merge-permissions` to the command in `host-init.sh`, knowing every listed repository then gets the wider set.
+
+### Integration test
+
+The [Scoped Token Integration](.github/workflows/integration-scoped.yml) workflow checks all of this against the real API, on pull requests from the same repository and on manual runs. It needs the `APP_ID` and `APP_PRIVATE_KEY` secrets for an App installed on the repository with Metadata read, Contents read, Pull requests read and write, and Issues read and write. Issues write is there only to prove that a token without it is refused. It:
+
+- mints a token for the current repository and checks the request, the token's repositories and permissions, that out-of-scope writes get a 403, and that revoking works;
+- starts a real devcontainer with `devcontainer up` and a scope of `contents: read` and `pull_requests: write`, then runs [`in-container.sh`](contrib/devcontainer/tests/in-container.sh) inside it: no private key in the container, `gh` and git use the token, pushing and creating labels are refused, and commenting on the pull request works (the comment is deleted right away).
 
 ### Refresh
 

@@ -1,0 +1,231 @@
+name: Scoped Token Integration
+
+# End-to-end tests of downscoped tokens against the real GitHub API, and of
+# the devcontainer integration with a real container.
+#
+# Needs the APP_ID and APP_PRIVATE_KEY secrets for a GitHub App installed on
+# this repository with at least: Metadata read, Contents read,
+# Pull requests read and write, and Issues read and write. Issues write is
+# only used to prove that a token without it is refused.
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REPO: ${{ github.repository }}
+
+jobs:
+  cli:
+    name: Scoped token (CLI)
+    runs-on: ubuntu-latest
+    # Secrets are not available to pull requests from other forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: make build
+
+      - name: Write private key
+        run: |
+          umask 077
+          printf "%s" "$APP_PRIVATE_KEY" > "$RUNNER_TEMP/app.pem"
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Check the App's permissions make the tests meaningful
+        run: |
+          ./gh-token installations -i "$APP_ID" -k "$RUNNER_TEMP/app.pem" > "$RUNNER_TEMP/installations.json"
+          owner="${REPO%%/*}"
+          perms="$(jq -c --arg owner "$owner" '[.[] | select(.account.login | ascii_downcase == ($owner | ascii_downcase))][0].permissions' "$RUNNER_TEMP/installations.json")"
+          echo "Installation permissions: $perms"
+          if [ "$perms" = "null" ]; then
+            echo "::error::The App is not installed for $owner"
+            exit 1
+          fi
+          if [ "$(jq -r '.issues // ""' <<<"$perms")" != "write" ]; then
+            echo "::error::The App needs Issues: write, otherwise the out-of-scope checks prove nothing"
+            exit 1
+          fi
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+
+      - name: Print the request for the current repository
+        run: |
+          ./gh-token generate -i "$APP_ID" -k "$RUNNER_TEMP/app.pem" \
+            --current-repo -p contents=read -p metadata=read --print-request | tee "$RUNNER_TEMP/request.txt"
+          repo_name="${REPO#*/}"
+          expected="$(jq -cn --arg r "$repo_name" '{repositories: [$r], permissions: {contents: "read", metadata: "read"}}')"
+          actual="$(tail -n 1 "$RUNNER_TEMP/request.txt" | jq -c .)"
+          test "$actual" = "$expected" || { echo "::error::expected $expected, got $actual"; exit 1; }
+          grep -q "current repository from git remote \"origin\"" "$RUNNER_TEMP/request.txt"
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+
+      - name: Mint a scoped token into a file
+        run: |
+          trap '[ -s "$RUNNER_TEMP/tokens/token" ] && echo "::add-mask::$(cat "$RUNNER_TEMP/tokens/token")"' EXIT
+          ./gh-token generate -i "$APP_ID" -k "$RUNNER_TEMP/app.pem" \
+            --current-repo -p contents=read -p metadata=read \
+            --output-file "$RUNNER_TEMP/tokens/token"
+          test "$(stat -c %a "$RUNNER_TEMP/tokens/token")" = 600
+          sidecar="$RUNNER_TEMP/tokens/token.json"
+          cat "$sidecar"
+          if grep -q ghs_ "$sidecar"; then echo "::error::the sidecar contains the token"; exit 1; fi
+          jq -e '.repository_selection == "selected"' "$sidecar"
+          jq -e --arg r "$REPO" '[.repositories[] | ascii_downcase] == [$r | ascii_downcase]' "$sidecar"
+          jq -e '.permissions == {contents: "read", metadata: "read"}' "$sidecar"
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+
+      - name: The token reaches only this repository
+        run: |
+          token="$(cat "$RUNNER_TEMP/tokens/token")"
+          curl -fsS -H "Authorization: Bearer $token" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/installation/repositories" > "$RUNNER_TEMP/repos.json"
+          jq -e --arg r "$REPO" '.total_count == 1 and (.repositories[0].full_name | ascii_downcase) == ($r | ascii_downcase)' "$RUNNER_TEMP/repos.json"
+          curl -fsS -H "Authorization: Bearer $token" "https://api.github.com/repos/$REPO" | jq -e --arg r "$REPO" '(.full_name | ascii_downcase) == ($r | ascii_downcase)'
+
+      - name: Out-of-scope writes are refused
+        run: |
+          token="$(cat "$RUNNER_TEMP/tokens/token")"
+          label="gh-token-it-${GITHUB_RUN_ID}"
+          status="$(curl -sS -o "$RUNNER_TEMP/label.json" -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $token" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/labels" -d "{\"name\":\"$label\",\"color\":\"ededed\"}")"
+          if [ "$status" = 201 ]; then
+            # Never leave a label behind, even when the test fails.
+            curl -sS -X DELETE -H "Authorization: Bearer $token" "https://api.github.com/repos/$REPO/labels/$label" || true
+          fi
+          cat "$RUNNER_TEMP/label.json"
+          test "$status" = 403 || { echo "::error::expected 403 creating a label, got $status"; exit 1; }
+
+      - name: Revoke the token
+        if: always()
+        run: |
+          [ -s "$RUNNER_TEMP/tokens/token" ] || exit 0
+          token="$(cat "$RUNNER_TEMP/tokens/token")"
+          ./gh-token revoke -t "$token"
+          status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.github.com/installation/repositories")"
+          test "$status" = 401 || { echo "::error::expected 401 after revoking, got $status"; exit 1; }
+
+  devcontainer:
+    name: Devcontainer with pull request permissions
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: make build
+
+      - name: Install the devcontainer CLI
+        run: npm install -g @devcontainers/cli@0.89.0
+
+      - name: Write private key
+        run: |
+          umask 077
+          printf "%s" "$APP_PRIVATE_KEY" > "$RUNNER_TEMP/app.pem"
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Prepare a workspace like a user would
+        run: |
+          ws="$RUNNER_TEMP/ws"
+          git clone --depth 1 "https://github.com/$REPO.git" "$ws"
+          mkdir -p "$ws/.devcontainer/gh-token"
+          cp contrib/devcontainer/*.sh contrib/devcontainer/tests/in-container.sh "$ws/.devcontainer/gh-token/"
+          # The agent may read code and work on pull requests, nothing else.
+          cat > "$ws/.devcontainer/devcontainer.json" <<'EOF'
+          {
+            // written by the Scoped Token Integration workflow
+            "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+            "features": {
+              "ghcr.io/devcontainers/features/github-cli:1": {}
+            },
+            "initializeCommand": "bash .devcontainer/gh-token/host-init.sh \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
+            "mounts": [
+              "source=${localEnv:HOME}/.cache/gh-token/${devcontainerId},target=/run/gh-token,type=bind,readonly"
+            ],
+            "postCreateCommand": "bash .devcontainer/gh-token/post-create.sh",
+            "customizations": {
+              "gh-token": {
+                "currentRepository": {
+                  "permissions": { "contents": "read", "pull_requests": "write" }
+                }
+              }
+            }
+          }
+          EOF
+          echo "WS=$ws" >> "$GITHUB_ENV"
+          # Path inside the container (the workspace is mounted at /workspaces/<name>).
+          echo "CHECKS=/workspaces/$(basename "$ws")/.devcontainer/gh-token/in-container.sh" >> "$GITHUB_ENV"
+
+      - name: Start the devcontainer
+        run: devcontainer up --workspace-folder "$WS"
+        env:
+          GH_TOKEN_APP_ID: ${{ secrets.APP_ID }}
+          GH_TOKEN_KEY: ${{ runner.temp }}/app.pem
+          GH_TOKEN_CMD: ${{ github.workspace }}/gh-token
+
+      - name: Show the host side
+        if: always()
+        run: |
+          dir="$(dirname "$(find "$HOME/.cache/gh-token" -name token -type f | head -n 1)")"
+          echo "::add-mask::$(cat "$dir/token")"
+          echo "TOKEN_DIR=$dir" >> "$GITHUB_ENV"
+          ls -la "$dir"
+          cat "$dir/token.json" "$dir/refresh.log"
+
+      - name: The key stays on the host
+        run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" no-key "$REPO"
+
+      - name: gh and git use the scoped token
+        run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" gh-and-git "$REPO"
+
+      - name: Pushing is refused (contents is read only)
+        run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" push-refused "$REPO" "$GITHUB_RUN_ID"
+
+      - name: Issues are refused (not in the scope)
+        run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" issues-refused "$REPO" "$GITHUB_RUN_ID"
+
+      - name: Pull request write works
+        run: |
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::notice::Not a pull request run; skipping the pull request comment check"
+            exit 0
+          fi
+          devcontainer exec --workspace-folder "$WS" bash "$CHECKS" pr-write "$REPO" "$GITHUB_RUN_ID" "$PR_NUMBER"
+
+      - name: Stop the refresher and revoke the token
+        if: always()
+        run: |
+          [ -n "${TOKEN_DIR:-}" ] || exit 0
+          if [ -s "$TOKEN_DIR/pid" ]; then kill "$(head -n 1 "$TOKEN_DIR/pid")" || true; fi
+          if [ -s "$TOKEN_DIR/token" ]; then ./gh-token revoke -t "$(cat "$TOKEN_DIR/token")" || true; fi
