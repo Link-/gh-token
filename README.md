@@ -292,6 +292,207 @@ jobs:
 
 </details>
 
+## Downscoped tokens
+
+By default `gh token generate` mints a token for the **whole installation**: every repository and every permission the App has. To give a script or an AI agent less than that, declare the repositories and permissions it needs, in the same format GitHub Codespaces uses in `devcontainer.json`. GitHub can only narrow a token, never widen it beyond the installation.
+
+```shell
+gh token generate \
+    --app-id 1122334 \
+    --key ./private-key.pem \
+    --scope-file examples/agent-fork-scope.json
+```
+
+Where [`examples/agent-fork-scope.json`](examples/agent-fork-scope.json) is:
+
+```json
+{
+  "repositories": {
+    "my-user/some-fork": {
+      "permissions": {
+        "contents": "write",
+        "workflows": "write",
+        "actions": "write",
+        "checks": "read"
+      }
+    }
+  }
+}
+```
+
+`--scope-file` (`-f`) takes either a plain file with `repositories`, or a whole `devcontainer.json` with `customizations.codespaces.repositories`; comments and trailing commas are fine. Keys are `owner/repo` or `owner/*`. Permissions are a map of [permission name](https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app) to `read`, `write` or `admin`, or the shorthands `read-all` and `write-all`.
+
+The installation is looked up from the repositories' owner, so `--installation-id` isn't needed. Check what would be requested without minting anything:
+
+```shell
+$ gh token generate -i 1122334 -k ./private-key.pem -f examples/agent-fork-scope.json --print-request
+# installation: 5566778 (looked up for my-user)
+# repository: my-user/some-fork (scope file)
+{"repositories":["some-fork"],"permissions":{"actions":"write","checks":"read","contents":"write","workflows":"write"}}
+```
+
+For one-off use, skip the file:
+
+```shell
+gh token generate -i 1122334 -k ./private-key.pem \
+    -r my-org/app -r my-org/lib \
+    -p contents=write -p pull_requests=write
+```
+
+### How a scope becomes a token
+
+An installation token belongs to one installation and carries **one** permission set for all its repositories. Codespaces can give each repository its own permissions; a single token can't, so `gh token` refuses rather than silently widening access:
+
+| Scope | Result |
+| --- | --- |
+| Repositories under more than one owner | Error. Split the file, or run once per owner. |
+| `owner/*` | All repositories in the installation. Specific repositories of the same owner only add permissions, with a warning. |
+| All repositories declare identical permissions | Used as is. |
+| Repositories declare different permissions | Error listing each repository's permissions, unless `--merge-permissions` is set. |
+| `--merge-permissions` | Union of all permissions, highest level wins, with a warning for every repository that gets more than it declared. |
+| `write-all` | The installation's permissions, unchanged. |
+| `read-all` | Every installation permission at `read` (write-only permissions such as `workflows` are left out). |
+
+> [!WARNING]
+> `--merge-permissions` widens access: every repository in the token gets the union of the declared permissions. Prefer identical permission sets, or separate tokens.
+
+After minting, the token's permissions and repositories are compared with the request and any difference is printed as a warning on stderr (`--silent` hides warnings). Failed requests include GitHub's error message, which names the rejected repository or permission.
+
+### Downscoping flags
+
+| Flag | Description |
+| --- | --- |
+| `--scope-file`, `-f` | Scope file or `devcontainer.json`. |
+| `--repository`, `-r` | `owner/repo`, or a bare `repo` with `--installation-id`. Repeatable. Not combinable with `--scope-file`. |
+| `--permission`, `-p` | `name=level`, `read-all` or `write-all`. Repeatable. With `--scope-file` it only supplies the current repository's permissions. |
+| `--merge-permissions` | Accept differing permissions by merging them (widens access). |
+| `--print-request` | Print the installation ID and request body, then exit. |
+| `--verify-installation` | With `--installation-id`, check it matches the scope's owner. |
+| `--current-repo`, `-c` | Add the clone's own repository from its git remote. On by default for `devcontainer.json` files. |
+| `--git-dir`, `--git-remote` | Clone (default `.`) and remote (default `origin`) to read. |
+| `--output-file` | Write the token atomically to a file (mode `0600`) instead of stdout, plus metadata (no token) to `<file>.json`. |
+| `--refresh` | With `--output-file`, keep running and re-mint before expiry. |
+| `--refresh-before` | How long before expiry to re-mint (default `10m`). |
+| `--revoke-on-exit` | With `--refresh`, revoke the current token on SIGINT or SIGTERM. |
+| `--pid-file` | With `--refresh`, don't start a second refresher with the same scope. |
+
+### The current repository
+
+Like Codespaces, the clone's own repository can be included without naming it, so the same `.devcontainer` works in every clone and fork. With `--current-repo` (implied for `devcontainer.json` files, disable with `--current-repo=false`) the repository is read with `git remote get-url origin` and must be on the same host as `--hostname`. Its permissions come from, in order:
+
+1. an entry for it under `repositories`;
+2. `customizations.gh-token.currentRepository.permissions` in `devcontainer.json`;
+3. `--permission` flags;
+4. an `owner/*` entry covering it;
+
+otherwise it's an error. There is deliberately no default permission set. The simplest local use needs no file at all:
+
+```shell
+gh token generate -i 1122334 -k ./private-key.pem --current-repo -p contents=write -p pull_requests=write
+```
+
+## Using with a local devcontainer
+
+GitHub Codespaces gives the code in a codespace a token scoped to what `devcontainer.json` declares. A local devcontainer (VS Code Dev Containers, `devcontainer up`) has nothing like it, so an agent inside it, for example Claude Code, would otherwise need a broad personal token. [`contrib/devcontainer/`](contrib/devcontainer/) reproduces the Codespaces behaviour:
+
+| Where | What |
+| --- | --- |
+| Host, `initializeCommand` | [`host-init.sh`](contrib/devcontainer/host-init.sh) starts `gh token generate --scope-file .devcontainer/devcontainer.json --output-file <dir>/token --refresh --pid-file <dir>/pid` in the background, logging to `<dir>/refresh.log`, and waits up to 30 seconds for a fresh token. The App's private key stays on the host. |
+| `mounts` | The token directory is bind-mounted read-only at `/run/gh-token`. |
+| Container, `postCreateCommand` | [`post-create.sh`](contrib/devcontainer/post-create.sh) installs a `gh` shim and a git credential helper that read `/run/gh-token/token` on every call, then runs `gh repo set-default` for `origin`. |
+
+### Setup
+
+1. Create a GitHub App with the permissions your agents may ever need, and install it on the repositories (or the organization) you'll work on.
+1. On the host, install the extension and point it at the App:
+
+    ```shell
+    gh extension install Link-/gh-token
+    export GH_TOKEN_APP_ID=1122334
+    export GH_TOKEN_KEY=$HOME/.config/gh-token/private-key.pem
+    # GitHub Enterprise Server only:
+    export GH_TOKEN_HOSTNAME=github.example.com
+    ```
+
+    `initializeCommand` inherits the environment of the process that starts the container, so set these where VS Code or the `devcontainer` CLI will see them (for example your shell profile, then start VS Code from that shell).
+1. Copy `contrib/devcontainer/*.sh` into `.devcontainer/gh-token/` in your repository.
+1. Add the wiring and the scope to `.devcontainer/devcontainer.json`. See [`examples/devcontainer.json`](examples/devcontainer.json) (the clone's repository plus one extra, with identical permissions) and [`contrib/devcontainer/devcontainer.example.jsonc`](contrib/devcontainer/devcontainer.example.jsonc):
+
+    ```jsonc
+    {
+      "features": { "ghcr.io/devcontainers/features/github-cli:1": {} },
+      "initializeCommand": "bash .devcontainer/gh-token/host-init.sh \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
+      "mounts": [
+        // mount the directory: atomic renames are only visible through a directory mount
+        "source=${localEnv:HOME}/.cache/gh-token/${devcontainerId},target=/run/gh-token,type=bind,readonly"
+      ],
+      "postCreateCommand": "bash .devcontainer/gh-token/post-create.sh",
+      "customizations": {
+        "codespaces": {
+          "repositories": {
+            "my-org/shared-charts": { "permissions": { "contents": "write", "pull_requests": "write" } }
+          }
+        },
+        "gh-token": {
+          // permissions for the clone's own repository
+          "currentRepository": { "permissions": { "contents": "write", "pull_requests": "write" } }
+        }
+      }
+    }
+    ```
+
+1. In your VS Code **user** settings, turn off forwarding of the host's git credentials into containers: `"dev.containers.gitCredentialHelperConfigLocation": "none"`.
+
+1. Open the folder in the container. Inside it, `gh auth status`, `gh pr create` and `git push` use the scoped token.
+
+The [devcontainer specification](https://containers.dev/implementors/json_reference/#variables-in-devcontainerjson) substitutes `${devcontainerId}` in both `initializeCommand` and `mounts`, so the host-side directory and the mount source are the same path. If your tool doesn't substitute it, `host-init.sh` falls back to `${XDG_RUNTIME_DIR:-$HOME/.cache}/gh-token/<hash of the workspace path>` and prints the path; use that fixed path as the mount source instead. `${localEnv:HOME}` is empty on Windows hosts; use `${localEnv:USERPROFILE}` there.
+
+Different permissions for the clone and the extra repositories (for example `contents: write` on the clone but `contents: read` on a shared repository) can't be expressed in one token. Either align them as above, or accept the union by adding `--merge-permissions` to the command in `host-init.sh`, knowing every listed repository then gets the wider set.
+
+### Refresh
+
+Installation tokens expire after one hour. The refresher re-mints the token 10 minutes before expiry and atomically replaces the file; on failure it keeps the old token and retries with backoff (at most every 5 minutes). The shim and credential helper read the file on every call, so nothing in the container needs restarting. `initializeCommand` runs on every container start: if a refresher with the same scope is already running it is reused, if it has a different scope (you changed `devcontainer.json`) `host-init.sh` fails and asks you to stop it.
+
+The refresher keeps running after the container stops. Stop it with:
+
+```shell
+kill "$(head -n 1 ~/.cache/gh-token/<devcontainerId>/pid)"
+```
+
+The scope is read **once**, when the refresher starts. Later refreshes reuse the same request and never re-read `devcontainer.json` or the git remote: the agent can edit files in the workspace, and that must not widen the next token. This is a security property, not an oversight.
+
+### Security notes
+
+- The agent can read the token; it is meant to use it. The protection is that the token is limited to the declared repositories and permissions, expires within the hour, and the App's private key never enters the container.
+- The token directory must be outside the workspace, or the agent could commit it. `host-init.sh` refuses a directory inside the workspace.
+- `initializeCommand` runs whatever is in the repository's `.devcontainer` **on the host**, and the scope is read from the workspace when the container starts. An agent that edits `.devcontainer/devcontainer.json` can widen the scope of the *next* start. Only use this with repositories you trust, review changes to `.devcontainer/`, and consider keeping the scripts and the scope outside the repository (`GH_TOKEN_SCOPE_FILE=/path/outside/repo.json`).
+- Don't run `gh auth login` in the container. The shim sets `GH_TOKEN` (or `GH_ENTERPRISE_TOKEN` for GitHub Enterprise Server), which takes precedence, and removes any other token variables from `gh`'s environment.
+- Turn off VS Code's forwarding of host git credentials (`dev.containers.gitCredentialHelperConfigLocation: none` in your user settings). `post-create.sh` also resets the helper list for the GitHub host so its helper answers first, but a forwarded helper configured later could still be asked when no token is available. SSH remotes for that host are rewritten to https so pushes don't use a forwarded SSH agent; consider disabling SSH agent forwarding too.
+- The token directory is `0700` and owned by your host user. On Linux the container user must have the same UID (the devcontainer default `updateRemoteUserUID` handles this); Docker Desktop on macOS doesn't enforce host ownership.
+- The App must be installed on the clone's repository (or its owner, with access to the repository). Otherwise the lookup returns 404 and `host-init.sh` says so.
+
+## Agent on a fork
+
+An agent can develop and validate a GitHub Actions workflow on your fork of a public repository, then a **human** opens the pull request upstream. An installation token can't create pull requests on a repository where the App isn't installed, and that step is deliberately left to a person.
+
+1. Install the App on the fork (or on "All repositories" of your account).
+1. Enable Actions on the fork by hand (forks start with workflows disabled). Doing it by hand avoids granting the agent the `administration` permission.
+1. Scope the token to the fork, for example with [`examples/agent-fork-scope.json`](examples/agent-fork-scope.json), or in `devcontainer.json`:
+
+    ```jsonc
+    "customizations": {
+      "gh-token": {
+        "currentRepository": {
+          "permissions": { "contents": "write", "workflows": "write", "actions": "write", "checks": "read" }
+        }
+      }
+    }
+    ```
+
+1. Clone with `origin` pointing at the fork and `upstream` at the original. `gh` may resolve commands to `upstream`, which the token can't reach; `post-create.sh` runs `gh repo set-default <owner>/<fork>` for you (or run it yourself).
+1. The agent pushes a branch, then runs `gh workflow run`, `gh run watch` and `gh run view --log`.
+1. You open the pull request to upstream.
+
 ## Similar projects
 
 _These are not endorsements, just a listing of similar art work_

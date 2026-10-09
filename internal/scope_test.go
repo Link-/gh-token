@@ -306,3 +306,23 @@ func TestBuildScopeRequestNamesEntrySource(t *testing.T) {
 	_, err := BuildScopeRequest(s, false)
 	assert.ErrorContains(t, err, `my-user: my-user/x (from git remote "origin")`)
 }
+
+// TestShippedExamples keeps the examples in the repository valid.
+func TestShippedExamples(t *testing.T) {
+	for _, path := range []string{
+		"../examples/agent-fork-scope.json",
+		"../examples/devcontainer.json",
+		"../contrib/devcontainer/devcontainer.example.jsonc",
+	} {
+		t.Run(path, func(t *testing.T) {
+			s, err := ReadScopeFile(path)
+			require.NoError(t, err)
+			if s.CurrentRepository != nil {
+				// Simulate the clone's repo, as --current-repo does.
+				require.NoError(t, addCurrentRepository(s, "my-org", "app", `git remote "origin"`, nil, nil))
+			}
+			_, err = BuildScopeRequest(s, false)
+			assert.NoError(t, err, "examples must not need --merge-permissions")
+		})
+	}
+}
