@@ -261,7 +261,10 @@ func TestAcquirePIDFile(t *testing.T) {
 
 	t.Run("live_refresher", func(t *testing.T) {
 		// A live process whose command line contains --refresh.
-		cmd := exec.Command("sh", "-c", "sleep 30", "--refresh")
+		// "; true" keeps the shell from replacing itself with sleep (bash, as
+		// /bin/sh on macOS, does that for a single command), which would drop
+		// --refresh from the command line.
+		cmd := exec.Command("sh", "-c", "sleep 30; true", "--refresh")
 		if err := cmd.Start(); err != nil {
 			t.Skip("cannot start helper process")
 		}
