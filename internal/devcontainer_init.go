@@ -136,6 +136,10 @@ func DevcontainerInit(c *cli.Context) error {
 	var nc errNotConfigured
 	if err != nil && optional && (errors.As(err, &nc) || errors.Is(err, errRefresherFailed)) {
 		say("WARNING: %v", err)
+		// The token directory is reused across starts: don't leave an earlier
+		// refresher or token behind for a container that is meant to start
+		// without one.
+		clearEarlierToken(tokenDir, normalizeHostname(setting("hostname", "GH_TOKEN_HOSTNAME")), say)
 		say("starting the container without a GitHub token (--optional)")
 		return nil
 	}
@@ -144,6 +148,33 @@ func DevcontainerInit(c *cli.Context) error {
 }
 
 var errRefresherFailed = errors.New("the refresher failed")
+
+// clearEarlierToken stops a refresher left by an earlier start, revokes a
+// token still in the directory and removes the token files. The directory
+// itself stays: it is the bind mount's source.
+func clearEarlierToken(tokenDir, apiHostname string, say func(string, ...any)) {
+	pidFile := filepath.Join(tokenDir, "pid")
+	pid, _, err := stopRefresher(pidFile, 10*time.Second)
+	if err != nil {
+		say("WARNING: %v", err)
+	} else if pid != 0 {
+		say("stopped the earlier refresher (pid %d)", pid)
+	}
+
+	tokenPath := filepath.Join(tokenDir, "token")
+	if b, err := os.ReadFile(tokenPath); err == nil {
+		// A refresher started with --revoke-on-exit has usually revoked it
+		// already, and then this fails harmlessly.
+		if token := strings.TrimSpace(string(b)); token != "" && revokeToken(apiHostname, token) == nil {
+			say("revoked the earlier token")
+		}
+	}
+	for _, f := range []string{tokenPath, tokenPath + ".json", pidFile} {
+		if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
+			say("WARNING: unable to remove %s: %v", f, err)
+		}
+	}
+}
 
 func startRefresher(c *cli.Context, tokenDir, workspace, envFile string, setting func(flag, env string) string, say func(string, ...any)) error {
 	hostname := setting("hostname", "GH_TOKEN_HOSTNAME")

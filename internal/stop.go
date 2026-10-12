@@ -46,27 +46,45 @@ func Stop(c *cli.Context) error {
 		pidFile = filepath.Join(target, "pid")
 	}
 
+	pid, stale, err := stopRefresher(pidFile, c.Duration("timeout"))
+	switch {
+	case err != nil:
+		return err
+	case stale:
+		say("no refresher is running for %s (removed a stale pid file)", target)
+	case pid == 0:
+		say("no refresher is running for %s", target)
+	default:
+		say("stopped refresher %d", pid)
+	}
+
+	return nil
+}
+
+// stopRefresher stops the refresher recorded in pidFile and waits for it to
+// exit, so it can't write another token afterwards. It only signals the
+// process if it really is a gh-token refresher. It returns the stopped pid
+// (0 if none was running) and whether a stale pid file was removed.
+func stopRefresher(pidFile string, timeout time.Duration) (int, bool, error) {
 	pid, _, err := readPIDFile(pidFile)
 	if errors.Is(err, os.ErrNotExist) {
-		say("no refresher is running for %s", target)
-		return nil
+		return 0, false, nil
 	}
 	if err != nil {
-		return fmt.Errorf("unable to read pid file %s: %w", pidFile, err)
+		return 0, false, fmt.Errorf("unable to read pid file %s: %w", pidFile, err)
 	}
 	if !processAlive(pid) {
 		_ = os.Remove(pidFile)
-		say("no refresher is running for %s (removed a stale pid file)", target)
-		return nil
+		return 0, true, nil
 	}
 
 	if err := terminate(pid); err != nil {
-		return fmt.Errorf("unable to stop refresher %d: %w", pid, err)
+		return 0, false, fmt.Errorf("unable to stop refresher %d: %w", pid, err)
 	}
-	deadline := time.Now().Add(c.Duration("timeout"))
+	deadline := time.Now().Add(timeout)
 	for processAlive(pid) {
 		if time.Now().After(deadline) {
-			return fmt.Errorf("refresher %d did not exit within %s", pid, c.Duration("timeout"))
+			return 0, false, fmt.Errorf("refresher %d did not exit within %s", pid, timeout)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -74,9 +92,8 @@ func Stop(c *cli.Context) error {
 	if p, _, err := readPIDFile(pidFile); err == nil && p == pid {
 		_ = os.Remove(pidFile)
 	}
-	say("stopped refresher %d", pid)
 
-	return nil
+	return pid, false, nil
 }
 
 // terminate asks a process to exit: SIGTERM, so a refresher started with

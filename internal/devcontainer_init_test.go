@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
@@ -323,4 +325,116 @@ func TestReadEnvFile(t *testing.T) {
 	settings, err = readEnvFile(filepath.Join(t.TempDir(), "missing"))
 	require.NoError(t, err)
 	assert.Empty(t, settings)
+}
+
+// startFakeRefresher starts a process whose command line contains --refresh,
+// as processAlive requires, and returns it with a channel closed on exit.
+func startFakeRefresher(t *testing.T) (*exec.Cmd, chan struct{}) {
+	t.Helper()
+	// A compound script keeps the shell from replacing itself with sleep,
+	// which would drop --refresh from its command line.
+	cmd := exec.Command("sh", "-c", `trap "exit 0" TERM; sleep 30 & wait; true`, "--refresh")
+	require.NoError(t, cmd.Start())
+	exited := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(exited)
+	}()
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	return cmd, exited
+}
+
+func TestDevcontainerInitOptionalClearsEarlierToken(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses Unix processes")
+	}
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	httpmock.RegisterResponder("DELETE", "https://api.github.com/installation/token", httpmock.NewStringResponder(204, ""))
+
+	setup := func(t *testing.T, pid int) string {
+		e := newInitEnv(t, "ok")
+		dir := filepath.Join(e.home, "tokens")
+		require.NoError(t, os.MkdirAll(dir, 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "token"), []byte("ghs_earlier\n"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "token.json"), []byte("{}\n"), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "pid"), []byte(fmt.Sprintf("%d\nhash\n", pid)), 0o600))
+		return dir
+	}
+	assertCleared := func(t *testing.T, dir string) {
+		for _, f := range []string{"token", "token.json", "pid"} {
+			_, err := os.Stat(filepath.Join(dir, f))
+			assert.True(t, os.IsNotExist(err), "%s must be removed", f)
+		}
+		st, err := os.Stat(dir)
+		require.NoError(t, err, "the token directory stays: it is the mount source")
+		assert.True(t, st.IsDir())
+	}
+	revokes := func() int {
+		return httpmock.GetCallCountInfo()["DELETE https://api.github.com/installation/token"]
+	}
+
+	t.Run("stops_the_refresher_and_revokes_the_token", func(t *testing.T) {
+		httpmock.ZeroCallCounters()
+		cmd, exited := startFakeRefresher(t)
+		dir := setup(t, cmd.Process.Pid)
+
+		out, err := runDevcontainerInit(t, "--optional", dir)
+		require.NoError(t, err)
+		assert.Contains(t, out, fmt.Sprintf("stopped the earlier refresher (pid %d)", cmd.Process.Pid))
+		assert.Contains(t, out, "revoked the earlier token")
+		select {
+		case <-exited:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the earlier refresher is still running")
+		}
+		assertCleared(t, dir)
+		assert.Equal(t, 1, revokes())
+	})
+
+	t.Run("refresher_already_gone", func(t *testing.T) {
+		httpmock.ZeroCallCounters()
+		dir := setup(t, 999999999)
+
+		out, err := runDevcontainerInit(t, "--optional", dir)
+		require.NoError(t, err)
+		assert.NotContains(t, out, "stopped the earlier refresher")
+		assert.Contains(t, out, "revoked the earlier token")
+		assertCleared(t, dir)
+		assert.Equal(t, 1, revokes())
+	})
+
+	t.Run("unrelated_process_is_left_alone", func(t *testing.T) {
+		httpmock.ZeroCallCounters()
+		other := exec.Command("sleep", "30")
+		require.NoError(t, other.Start())
+		defer func() {
+			_ = other.Process.Kill()
+			_ = other.Wait()
+		}()
+		dir := setup(t, other.Process.Pid)
+
+		out, err := runDevcontainerInit(t, "--optional", dir)
+		require.NoError(t, err)
+		assert.NotContains(t, out, "stopped the earlier refresher")
+		assert.NoError(t, other.Process.Signal(syscall.Signal(0)), "sleep must still be running")
+		assertCleared(t, dir)
+	})
+
+	t.Run("strict_mode_leaves_it", func(t *testing.T) {
+		httpmock.ZeroCallCounters()
+		cmd, exited := startFakeRefresher(t)
+		dir := setup(t, cmd.Process.Pid)
+
+		_, err := runDevcontainerInit(t, dir)
+		require.Error(t, err)
+		_, statErr := os.Stat(filepath.Join(dir, "token"))
+		assert.NoError(t, statErr)
+		assert.Zero(t, revokes())
+		select {
+		case <-exited:
+			t.Fatal("strict mode must not stop the refresher")
+		default:
+		}
+	})
 }

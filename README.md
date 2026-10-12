@@ -465,7 +465,7 @@ Different permissions for the clone and the extra repositories (for example `con
 
 ### Team repositories: optional mode
 
-By default `devcontainer-init` fails when the host isn't set up, so the container doesn't start without credentials. In a team repository where not everyone has an App, add `--optional` (or set `GH_TOKEN_OPTIONAL=1`): when the App ID, key or scope file is missing, or minting fails, it prints a warning and the container starts without a token. The token directory is still created, so the bind mount works. `post-create.sh` then leaves `gh` and git unchanged. The token directory inside the workspace is still an error.
+By default `devcontainer-init` fails when the host isn't set up, so the container doesn't start without credentials. In a team repository where not everyone has an App, add `--optional` (or set `GH_TOKEN_OPTIONAL=1`): when the App ID, key or scope file is missing, or minting fails, it prints a warning and the container starts without a token. The token directory is still created, so the bind mount works. Because the directory is reused across starts, it is also cleared: a refresher left by an earlier start is stopped (only if it really is one), a remaining token is revoked, and the token files are removed, so a developer who opts out doesn't keep an old token in the container. `post-create.sh` then leaves `gh` and git unchanged. The token directory inside the workspace is still an error.
 
 ### Personal Apps and attribution
 
@@ -476,7 +476,11 @@ What GitHub shows as the author:
 - **Commits** carry the git `user.name` and `user.email` from the container. Dev Containers copies them from the host's `~/.gitconfig`, so commits are linked to the developer.
 - **Pushes, pull requests and comments** show as `<app>[bot]`.
 
-So a developer can approve a pull request their agent opened, because GitHub doesn't treat it as their own. If that matters, use branch protection's "Require approval of the most recent reviewable push" or code owners, so someone else has to approve.
+So a developer can approve a pull request their agent opened, because GitHub doesn't treat it as their own. Branch protection can't prevent this: "Require approval of the most recent reviewable push" only excludes whoever pushed, which is `<app>[bot]`, and code owners don't help if the developer is one; no setting links an App to its owner. What does work:
+
+- have someone other than the App's owner review the agent's pull requests;
+- let the agent push branches and have a person open the pull request, so GitHub's rule against approving your own pull request applies;
+- or a required status check that looks up the App's owner (`GET /apps/{slug}` returns `owner.login` for a user-owned App) and requires an approval from someone else, ignoring bot approvals.
 
 ### Integration test
 
