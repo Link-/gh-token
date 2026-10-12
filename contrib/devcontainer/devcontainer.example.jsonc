@@ -1,10 +1,12 @@
 // Example .devcontainer/devcontainer.json wiring up gh-token for a local
-// agent. Copy contrib/devcontainer/*.sh into .devcontainer/gh-token/.
+// agent. Copy contrib/devcontainer/*.sh into .devcontainer/gh-token/; they
+// run inside the container only.
 //
-// On the host, before opening the container:
+// On the host, once:
 //   gh extension install Link-/gh-token
-//   export GH_TOKEN_APP_ID=123456
-//   export GH_TOKEN_KEY=$HOME/.config/gh-token/app.pem
+//   mkdir -p ~/.config/gh-token
+//   echo 'GH_TOKEN_APP_ID=123456' > ~/.config/gh-token/devcontainer.env
+//   cp <your App's private key> ~/.config/gh-token/app.pem
 {
   "name": "agent",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
@@ -12,10 +14,12 @@
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
 
-  // Runs on the HOST: starts the token refresher and waits for the first token.
+  // Runs on the HOST, from the installed extension (not from the workspace):
+  // starts the token refresher and waits for the first token.
   // ${devcontainerId} is unique per container and stable across rebuilds; the
-  // same path is used as the mount source below.
-  "initializeCommand": "bash .devcontainer/gh-token/host-init.sh \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
+  // same path is used as the mount source below. In a team repository, add
+  // --optional so developers without gh-token set up still get a container.
+  "initializeCommand": "gh token devcontainer-init \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
 
   "mounts": [
     // Mount the directory, not the token file: atomic renames on the host are
@@ -25,6 +29,12 @@
 
   // Runs in the container: installs the gh shim and git credential helper.
   "postCreateCommand": "bash .devcontainer/gh-token/post-create.sh",
+
+  // VS Code forwards the host's SSH agent, which would give the agent every
+  // key loaded on the host. Remove its socket on every attach, and unset
+  // SSH_AUTH_SOCK.
+  "postAttachCommand": "bash .devcontainer/gh-token/post-attach.sh",
+  "remoteEnv": { "SSH_AUTH_SOCK": "" },
 
   "customizations": {
     "codespaces": {

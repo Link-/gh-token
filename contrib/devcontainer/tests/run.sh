@@ -125,78 +125,16 @@ if bash "$shim" status >/dev/null 2>"$tmp/err"; then fail "shim fails without a 
 grep -q "no token at" "$tmp/err" && pass "shim explains missing token" || fail "shim explains missing token"
 unset GH_TOKEN_DIR GH_TOKEN_REAL_GH GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN
 
-# --- host-init -------------------------------------------------------------
-fake_cli="$tmp/fake-gh-token.sh"
-cat >"$fake_cli" <<'FAKE'
-#!/usr/bin/env bash
-# Records its arguments, then behaves according to FAKE_MODE.
-printf '%s\n' "$@" >"$FAKE_ARGS"
-out=""
-while [ $# -gt 0 ]; do
-  [ "$1" = "--output-file" ] && out="$2"
-  shift
-done
-case "$FAKE_MODE" in
-  ok) printf 'ghs_%s\n' "$RANDOM$RANDOM" >"$out"; exec sleep 30 ;;
-  fail) echo "Error: failed resolving installation ID: unexpected status code: 404" >&2; exit 1 ;;
-  running) exit 0 ;;
-  hang) exec sleep 30 ;;
-esac
-FAKE
-
-workspace="$tmp/workspace"
-mkdir -p "$workspace/.devcontainer"
-echo '{"customizations": {}}' >"$workspace/.devcontainer/devcontainer.json"
-printf 'key' >"$tmp/key.pem"
-export GH_TOKEN_APP_ID=123 GH_TOKEN_KEY="$tmp/key.pem" GH_TOKEN_CMD="bash $fake_cli" FAKE_ARGS="$tmp/args"
-dir="$tmp/state/gh-token/abc"
-
-run_init() { (cd "$workspace" && bash "$here/host-init.sh" "$@"); }
-cleanup_fake() { pkill -f "$fake_cli" 2>/dev/null || true; }
-
-FAKE_MODE=ok run_init "$dir" 2>"$tmp/err" && pass "host-init succeeds once a token is written" || {
-  fail "host-init succeeds once a token is written"
-  cat "$tmp/err" >&2
-}
-cleanup_fake
-[ -s "$dir/token" ] && pass "host-init leaves the token in the token dir" || fail "host-init leaves the token in the token dir"
-check "host-init writes the host file" "github.com" "$(cat "$dir/host")"
-check "host-init token dir is 0700" "700" "$(stat -c %a "$dir" 2>/dev/null || stat -f %Lp "$dir")"
-grep -qx -- "--refresh" "$tmp/args" && grep -qx -- "$dir/pid" "$tmp/args" && grep -qx -- "$dir/token" "$tmp/args" &&
-  pass "host-init passes --refresh, --pid-file and --output-file" || fail "host-init passes --refresh, --pid-file and --output-file"
-grep -qx -- "--hostname" "$tmp/args" && fail "host-init omits --hostname for github.com" || pass "host-init omits --hostname for github.com"
-
-FAKE_MODE=running run_init "$dir" 2>"$tmp/err" && grep -q "already running" "$tmp/err" &&
-  pass "host-init reuses a running refresher" || fail "host-init reuses a running refresher"
-
-if FAKE_MODE=fail run_init "$dir" 2>"$tmp/err"; then fail "host-init fails when the refresher fails"; else
-  pass "host-init fails when the refresher fails"
-fi
-grep -q "unexpected status code: 404" "$tmp/err" && grep -q "install it on the repository" "$tmp/err" &&
-  pass "host-init shows the log tail and the 404 hint" || fail "host-init shows the log tail and the 404 hint"
-
-if FAKE_MODE=hang GH_TOKEN_TIMEOUT=1 run_init "$dir" 2>"$tmp/err"; then fail "host-init times out"; else pass "host-init times out"; fi
-cleanup_fake
-grep -q "no token after 1s" "$tmp/err" && pass "host-init explains the timeout" || fail "host-init explains the timeout"
-
-FAKE_MODE=ok GH_TOKEN_HOSTNAME=ghes.example.com run_init "$dir" 2>/dev/null
-cleanup_fake
-check "host-init writes the GHES host" "ghes.example.com" "$(cat "$dir/host")"
-grep -qx -- "ghes.example.com" "$tmp/args" && pass "host-init passes --hostname for GHES" || fail "host-init passes --hostname for GHES"
-
-if FAKE_MODE=ok run_init "$workspace/.tokens" 2>"$tmp/err"; then fail "host-init rejects a token dir inside the workspace"; else
-  grep -q "inside the workspace" "$tmp/err" && pass "host-init rejects a token dir inside the workspace" || fail "host-init rejects a token dir inside the workspace"
-fi
-
-# shellcheck disable=SC2016 # literal, as written in devcontainer.json
-XDG_RUNTIME_DIR="$tmp/xdg" FAKE_MODE=ok run_init '/x/${devcontainerId}' 2>/dev/null
-cleanup_fake
-compgen -G "$tmp/xdg/gh-token/*/token" >/dev/null && pass "host-init falls back to a hashed dir when \${devcontainerId} is not substituted" ||
-  fail "host-init falls back to a hashed dir when \${devcontainerId} is not substituted"
-
-if (unset GH_TOKEN_APP_ID && FAKE_MODE=ok run_init "$dir" 2>"$tmp/err"); then fail "host-init requires GH_TOKEN_APP_ID"; else
-  grep -q "GH_TOKEN_APP_ID is not set" "$tmp/err" && pass "host-init requires GH_TOKEN_APP_ID" || fail "host-init requires GH_TOKEN_APP_ID"
-fi
+# --- post-attach -----------------------------------------------------------
+socks="$tmp/socks"
+mkdir -p "$socks"
+touch "$socks/vscode-ssh-auth-1234.sock" "$socks/other.sock"
+GH_TOKEN_SSH_SOCKET_DIR="$socks" bash "$here/post-attach.sh" 2>"$tmp/err"
+[ ! -e "$socks/vscode-ssh-auth-1234.sock" ] && pass "post-attach removes the forwarded SSH agent socket" ||
+  fail "post-attach removes the forwarded SSH agent socket"
+[ -e "$socks/other.sock" ] && pass "post-attach leaves other sockets alone" || fail "post-attach leaves other sockets alone"
+grep -q "removed forwarded SSH agent socket" "$tmp/err" && pass "post-attach says what it removed" || fail "post-attach says what it removed"
+GH_TOKEN_SSH_SOCKET_DIR="$socks" bash "$here/post-attach.sh" && pass "post-attach is idempotent" || fail "post-attach is idempotent"
 
 # --- post-create -----------------------------------------------------------
 pc="$tmp/pc"
@@ -217,6 +155,15 @@ run_post_create() {
     FAKE_GH_LOG="$pc/gh.log" bash "$here/post-create.sh")
 }
 gitcfg() { HOME="$pc/home" GIT_CONFIG_NOSYSTEM=1 git config --global "$@"; }
+
+mv "$pc/tokens/token" "$pc/tokens/token.bak"
+if run_post_create 2>"$tmp/err"; then pass "post-create without a token succeeds"; else fail "post-create without a token succeeds"; fi
+grep -q "WARNING: no token" "$tmp/err" && pass "post-create without a token warns" || fail "post-create without a token warns"
+[ ! -e "$pc/bin/gh" ] && [ ! -e "$pc/bin/git-credential-gh-token" ] &&
+  pass "post-create without a token installs nothing" || fail "post-create without a token installs nothing"
+[ -z "$(gitcfg --get-all credential.https://github.com.helper 2>/dev/null)" ] &&
+  pass "post-create without a token leaves git config alone" || fail "post-create without a token leaves git config alone"
+mv "$pc/tokens/token.bak" "$pc/tokens/token"
 
 if run_post_create 2>"$tmp/err"; then pass "post-create succeeds"; else
   fail "post-create succeeds"

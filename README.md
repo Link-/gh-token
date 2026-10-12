@@ -75,10 +75,12 @@ VERSION:
    2.0.2
 
 COMMANDS:
-   generate       Generate a new GitHub App installation token
-   revoke         Revoke a GitHub App installation token
-   installations  List GitHub App installations
-   help, h        Shows a list of commands or help for one command
+   generate           Generate a new GitHub App installation token
+   revoke             Revoke a GitHub App installation token
+   devcontainer-init  Start a refresher for a devcontainer's token directory (run from initializeCommand)
+   stop               Stop the refresher keeping a token directory fresh (started with generate --refresh --pid-file)
+   installations      List GitHub App installations
+   help, h            Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --help, -h     show help
@@ -396,40 +398,47 @@ gh token generate -i 1122334 -k ./private-key.pem --current-repo -p contents=wri
 
 ## Using with a local devcontainer
 
-GitHub Codespaces gives the code in a codespace a token scoped to what `devcontainer.json` declares. A local devcontainer (VS Code Dev Containers, `devcontainer up`) has nothing like it, so an agent inside it, for example Claude Code, would otherwise need a broad personal token. [`contrib/devcontainer/`](contrib/devcontainer/) reproduces the Codespaces behaviour:
+GitHub Codespaces gives the code in a codespace a token scoped to what `devcontainer.json` declares. A local devcontainer (VS Code Dev Containers, `devcontainer up`) has nothing like it, so an agent inside it, for example Claude Code, would otherwise need a broad personal token. `gh token devcontainer-init` and the scripts in [`contrib/devcontainer/`](contrib/devcontainer/) reproduce the Codespaces behaviour:
 
 | Where | What |
 | --- | --- |
-| Host, `initializeCommand` | [`host-init.sh`](contrib/devcontainer/host-init.sh) starts `gh token generate --scope-file .devcontainer/devcontainer.json --output-file <dir>/token --refresh --pid-file <dir>/pid` in the background, logging to `<dir>/refresh.log`, and waits up to 30 seconds for a fresh token. The App's private key stays on the host. |
+| Host, `initializeCommand` | `gh token devcontainer-init <dir>`, from the installed extension, starts `gh token generate --scope-file .devcontainer/devcontainer.json --output-file <dir>/token --refresh --pid-file <dir>/pid --revoke-on-exit` in the background, logging to `<dir>/refresh.log`, and waits up to 30 seconds for a fresh token. The App's private key stays on the host. |
 | `mounts` | The token directory is bind-mounted read-only at `/run/gh-token`. |
 | Container, `postCreateCommand` | [`post-create.sh`](contrib/devcontainer/post-create.sh) installs a `gh` shim and a git credential helper that read `/run/gh-token/token` on every call, then runs `gh repo set-default` for `origin`. |
+| Container, `postAttachCommand` | [`post-attach.sh`](contrib/devcontainer/post-attach.sh) removes VS Code's forwarded SSH agent socket on every attach. |
 
 ### Setup
 
-1. Create a GitHub App with the permissions your agents may ever need, and install it on the repositories (or the organization) you'll work on.
-1. On the host, install the extension and point it at the App:
+1. Create a GitHub App with the permissions your agents may ever need, and install it on the repositories (or the organization) you'll work on. See [Personal Apps and attribution](#personal-apps-and-attribution) for an App per developer.
+1. On the host, install the extension and give it the App ID and private key:
 
     ```shell
     gh extension install Link-/gh-token
-    export GH_TOKEN_APP_ID=1122334
-    export GH_TOKEN_KEY=$HOME/.config/gh-token/private-key.pem
-    # GitHub Enterprise Server only:
-    export GH_TOKEN_HOSTNAME=github.example.com
+    mkdir -p ~/.config/gh-token
+    cp ~/Downloads/<app>.private-key.pem ~/.config/gh-token/app.pem
+    cat > ~/.config/gh-token/devcontainer.env <<'ENV'
+    GH_TOKEN_APP_ID=1122334
+    # GH_TOKEN_KEY=~/.config/gh-token/app.pem    (the default)
+    # GH_TOKEN_HOSTNAME=github.example.com       (GitHub Enterprise Server only)
+    ENV
     ```
 
-    `initializeCommand` inherits the environment of the process that starts the container, so set these where VS Code or the `devcontainer` CLI will see them (for example your shell profile, then start VS Code from that shell).
-1. Copy `contrib/devcontainer/*.sh` into `.devcontainer/gh-token/` in your repository.
+    `devcontainer-init` reads `${XDG_CONFIG_HOME:-~/.config}/gh-token/devcontainer.env` (or `$GH_TOKEN_ENV_FILE`). The file is parsed, not executed: `KEY=value` lines, `#` comments and quotes are allowed. Environment variables of the same name take precedence, and flags take precedence over both (`gh token devcontainer-init --help`). Using the file matters because VS Code started from the Dock, Spotlight or a desktop launcher doesn't see variables set in your shell profile.
+1. Copy `contrib/devcontainer/*.sh` into `.devcontainer/gh-token/` in your repository. They only run inside the container.
 1. Add the wiring and the scope to `.devcontainer/devcontainer.json`. See [`examples/devcontainer.json`](examples/devcontainer.json) (the clone's repository plus one extra, with identical permissions) and [`contrib/devcontainer/devcontainer.example.jsonc`](contrib/devcontainer/devcontainer.example.jsonc):
 
     ```jsonc
     {
       "features": { "ghcr.io/devcontainers/features/github-cli:1": {} },
-      "initializeCommand": "bash .devcontainer/gh-token/host-init.sh \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
+      "initializeCommand": "gh token devcontainer-init \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
       "mounts": [
         // mount the directory: atomic renames are only visible through a directory mount
         "source=${localEnv:HOME}/.cache/gh-token/${devcontainerId},target=/run/gh-token,type=bind,readonly"
       ],
       "postCreateCommand": "bash .devcontainer/gh-token/post-create.sh",
+      // don't let the agent use the host's SSH keys
+      "postAttachCommand": "bash .devcontainer/gh-token/post-attach.sh",
+      "remoteEnv": { "SSH_AUTH_SOCK": "" },
       "customizations": {
         "codespaces": {
           "repositories": {
@@ -448,20 +457,37 @@ GitHub Codespaces gives the code in a codespace a token scoped to what `devconta
 
 1. Open the folder in the container. Inside it, `gh` commands such as `gh pr create`, and `git push`, use the scoped token.
 
-The [devcontainer specification](https://containers.dev/implementors/json_reference/#variables-in-devcontainerjson) substitutes `${devcontainerId}` in both `initializeCommand` and `mounts`, so the host-side directory and the mount source are the same path. If your tool doesn't substitute it, `host-init.sh` falls back to `${XDG_RUNTIME_DIR:-$HOME/.cache}/gh-token/<hash of the workspace path>` and prints the path; use that fixed path as the mount source instead. `${localEnv:HOME}` is empty on Windows hosts; use `${localEnv:USERPROFILE}` there.
+If `initializeCommand` can't find `gh` (VS Code started from the Dock has a minimal `PATH`), use its full path, for example `/opt/homebrew/bin/gh token devcontainer-init ...`.
 
-Different permissions for the clone and the extra repositories (for example `contents: write` on the clone but `contents: read` on a shared repository) can't be expressed in one token. Either align them as above, or accept the union by adding `--merge-permissions` to the command in `host-init.sh`, knowing every listed repository then gets the wider set.
+The [devcontainer specification](https://containers.dev/implementors/json_reference/#variables-in-devcontainerjson) substitutes `${devcontainerId}` in both `initializeCommand` and `mounts`, so the host-side directory and the mount source are the same path. If your tool doesn't substitute it, `devcontainer-init` falls back to `${XDG_RUNTIME_DIR:-$HOME/.cache}/gh-token/<hash of the workspace path>` and prints the path; use that fixed path as the mount source instead. `${localEnv:HOME}` is empty on Windows hosts; use `${localEnv:USERPROFILE}` there.
+
+Different permissions for the clone and the extra repositories (for example `contents: write` on the clone but `contents: read` on a shared repository) can't be expressed in one token. Either align them as above, or accept the union by adding `--merge-permissions` to `devcontainer-init`, knowing every listed repository then gets the wider set.
+
+### Team repositories: optional mode
+
+By default `devcontainer-init` fails when the host isn't set up, so the container doesn't start without credentials. In a team repository where not everyone has an App, add `--optional` (or set `GH_TOKEN_OPTIONAL=1`): when the App ID, key or scope file is missing, or minting fails, it prints a warning and the container starts without a token. The token directory is still created, so the bind mount works. `post-create.sh` then leaves `gh` and git unchanged. The token directory inside the workspace is still an error.
+
+### Personal Apps and attribution
+
+An App per developer is a natural fit: each developer creates their own App and keeps its key on their machine. A GitHub App owned by a *user* can only be installed on an organization when it is set to **Any account** (public). The organization owner must then approve the installation, and approve it again after every permission change. A public App's key still never leaves its owner's machine; "public" only means other accounts may install it.
+
+What GitHub shows as the author:
+
+- **Commits** carry the git `user.name` and `user.email` from the container. Dev Containers copies them from the host's `~/.gitconfig`, so commits are linked to the developer.
+- **Pushes, pull requests and comments** show as `<app>[bot]`.
+
+So a developer can approve a pull request their agent opened, because GitHub doesn't treat it as their own. If that matters, use branch protection's "Require approval of the most recent reviewable push" or code owners, so someone else has to approve.
 
 ### Integration test
 
 The [Scoped Token Integration](.github/workflows/integration-scoped.yml) workflow checks all of this against the real API, on pull requests from the same repository and on manual runs. It needs the `APP_ID` and `APP_PRIVATE_KEY` repository secrets (`APP_ID` may also be a repository variable) for an App installed on the repository with Metadata read, Contents read, and Pull requests read and write. It:
 
 - mints a token for the current repository and checks the request, the token's repositories and permissions, that out-of-scope writes get a 403, and that revoking works;
-- starts a real devcontainer with `devcontainer up` and a scope of `contents: read` and `pull_requests: write`, then runs [`in-container.sh`](contrib/devcontainer/tests/in-container.sh) inside it: the App's private key is not in the container, `gh` and git use the token, pushing is refused, the token has exactly the declared permissions on this repository only, and commenting on the pull request works (the comment is deleted right away).
+- starts a real devcontainer with `devcontainer up`, through `gh-token devcontainer-init`, with a scope of `contents: read` and `pull_requests: write`, then runs [`in-container.sh`](contrib/devcontainer/tests/in-container.sh) inside it: the App's private key is not in the container, `gh` and git use the token, there is no SSH agent, pushing is refused, the token has exactly the declared permissions on this repository only, and commenting on the pull request works (the comment is deleted right away). Finally `gh token stop` stops the refresher and the token is checked to be revoked.
 
 ### Refresh
 
-Installation tokens expire after one hour. The refresher re-mints the token 10 minutes before expiry and atomically replaces the file; on failure it keeps the old token and retries with backoff (at most every 5 minutes). The shim and credential helper read the file on every call, so nothing in the container needs restarting. `initializeCommand` runs on every container start: if a refresher with the same scope is already running it is reused, if it has a different scope (you changed `devcontainer.json`) `host-init.sh` fails and asks you to stop it.
+Installation tokens expire after one hour. The refresher re-mints the token 10 minutes before expiry and atomically replaces the file; on failure it keeps the old token and retries with backoff (at most every 5 minutes). The shim and credential helper read the file on every call, so nothing in the container needs restarting. `initializeCommand` runs on every container start: if a refresher with the same scope is already running it is reused, if it has a different scope (you changed `devcontainer.json`) `devcontainer-init` fails and asks you to stop it with `gh token stop`.
 
 The refresher keeps running after the container stops. Its `token.json` records its `pid`, when it started and the `workspace` it serves, so you can tell the directories under `~/.cache/gh-token/` apart. Stop one with:
 
@@ -476,12 +502,13 @@ The scope is read **once**, when the refresher starts. Later refreshes reuse the
 ### Security notes
 
 - The agent can read the token; it is meant to use it. The protection is that the token is limited to the declared repositories and permissions, expires within the hour, and the App's private key never enters the container.
-- The token directory must be outside the workspace, or the agent could commit it. `host-init.sh` refuses a directory inside the workspace.
-- `initializeCommand` runs whatever is in the repository's `.devcontainer` **on the host**, and the scope is read from the workspace when the container starts. An agent that edits `.devcontainer/devcontainer.json` can widen the scope of the *next* start. Only use this with repositories you trust, review changes to `.devcontainer/`, and consider keeping the scripts and the scope outside the repository (`GH_TOKEN_SCOPE_FILE=/path/outside/repo.json`).
+- The token directory must be outside the workspace, or the agent could commit it. `devcontainer-init` refuses a directory inside the workspace.
+- `initializeCommand` runs on the **host**. With `gh token devcontainer-init` it only runs the installed extension, not scripts from the workspace, which the agent can edit. The `initializeCommand` line itself and the scope are still read from the workspace when the container starts, so an agent that edits `.devcontainer/devcontainer.json` can change the scope of the *next* start, within what the App's installation grants. Review changes to `.devcontainer/`, keep the App's permissions and repository access to what agents may ever need, and consider keeping the scope outside the repository (`GH_TOKEN_SCOPE_FILE=/path/outside/repo.json`).
 - Don't run `gh auth login` in the container. The shim sets `GH_TOKEN` (or `GH_ENTERPRISE_TOKEN` for GitHub Enterprise Server), which takes precedence, and removes any other token variables from `gh`'s environment.
-- Turn off VS Code's forwarding of host git credentials (`dev.containers.gitCredentialHelperConfigLocation: none` in your user settings). Even when forwarding is on, git doesn't fall back to it for the GitHub host: `post-create.sh` makes the gh-token helper answer first, and when there is no token it tells git to stop (`quit=1`) instead of asking the next helper. Other hosts are left to other helpers. SSH remotes for that host are rewritten to https so pushes don't use a forwarded SSH agent; consider disabling SSH agent forwarding too.
+- Turn off VS Code's forwarding of host git credentials (`dev.containers.gitCredentialHelperConfigLocation: none` in your user settings). Even when forwarding is on, git doesn't fall back to it for the GitHub host: `post-create.sh` makes the gh-token helper answer first, and when there is no token it tells git to stop (`quit=1`) instead of asking the next helper. Other hosts are left to other helpers. VS Code's own credential helper script stays installed in the container, though, and a process could call it directly, so turning forwarding off is what actually keeps the host's credentials out.
+- VS Code also forwards the host's SSH agent, through which any key loaded on the host can be used, with access far beyond the token's scope. `post-create.sh` rewrites SSH remotes for the GitHub host to https, so git remotes use the token, and the example removes the agent: `post-attach.sh` deletes the forwarded socket (`/tmp/vscode-ssh-auth-*.sock`) on every attach, and `remoteEnv` sets `SSH_AUTH_SOCK` to empty. Check it in your container: `echo $SSH_AUTH_SOCK` should print nothing and `ssh-add -l` should fail to connect.
 - The token directory is `0700` and owned by your host user. On Linux the container user must have the same UID (the devcontainer default `updateRemoteUserUID` handles this); Docker Desktop on macOS doesn't enforce host ownership.
-- The App must be installed on the clone's repository (or its owner, with access to the repository). Otherwise the lookup returns 404 and `host-init.sh` says so.
+- The App must be installed on the clone's repository (or its owner, with access to the repository). Otherwise the lookup returns 404 and `devcontainer-init` says so.
 
 ## Agent on a fork
 

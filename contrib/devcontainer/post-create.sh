@@ -19,7 +19,12 @@ if [ "$(id -u)" -ne 0 ] && [ ! -w "$bin_dir" ]; then
 fi
 
 if [ ! -s "$token_dir/token" ]; then
-  echo "gh-token post-create: warning: no token at $token_dir/token; check the mount and host-init.sh" >&2
+  # Optional mode on a host without gh-token set up, or a failed refresher:
+  # leave gh and git as they are rather than install a shim that fails on
+  # every call.
+  echo "gh-token post-create: WARNING: no token at $token_dir/token; gh and git are left unchanged." >&2
+  echo "gh-token post-create: set up the host (see gh token devcontainer-init) and rebuild the container to use a scoped token." >&2
+  exit 0
 fi
 
 # Find the real gh, skipping a previously installed shim.

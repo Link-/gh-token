@@ -156,8 +156,11 @@ jobs:
       - name: Build
         run: make build
 
-      - name: Install the devcontainer CLI
-        run: npm install -g @devcontainers/cli@0.89.0
+      - name: Install gh-token and the devcontainer CLI
+        run: |
+          # On PATH, as an installed extension would be.
+          sudo install -m 0755 gh-token /usr/local/bin/gh-token
+          npm install -g @devcontainers/cli@0.89.0
 
       - name: Write private key
         run: |
@@ -185,11 +188,13 @@ jobs:
             "features": {
               "ghcr.io/devcontainers/features/github-cli:1": {}
             },
-            "initializeCommand": "bash .devcontainer/gh-token/host-init.sh \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
+            "initializeCommand": "gh-token devcontainer-init \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
             "mounts": [
               "source=${localEnv:HOME}/.cache/gh-token/${devcontainerId},target=/run/gh-token,type=bind,readonly"
             ],
             "postCreateCommand": "bash .devcontainer/gh-token/post-create.sh",
+            "postAttachCommand": "bash .devcontainer/gh-token/post-attach.sh",
+            "remoteEnv": { "SSH_AUTH_SOCK": "" },
             "customizations": {
               "gh-token": {
                 "currentRepository": {
@@ -208,7 +213,6 @@ jobs:
         env:
           GH_TOKEN_APP_ID: ${{ secrets.APP_ID || vars.APP_ID }}
           GH_TOKEN_KEY: ${{ runner.temp }}/app.pem
-          GH_TOKEN_CMD: ${{ github.workspace }}/gh-token
 
       - name: Show the host side
         if: always()
@@ -232,6 +236,9 @@ jobs:
       - name: gh and git use the scoped token
         run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" gh-and-git "$REPO"
 
+      - name: No SSH agent in the container
+        run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" no-ssh-agent "$REPO"
+
       - name: Pushing is refused (contents is read only)
         run: devcontainer exec --workspace-folder "$WS" bash "$CHECKS" push-refused "$REPO" "$GITHUB_RUN_ID"
 
@@ -250,5 +257,13 @@ jobs:
         if: always()
         run: |
           [ -n "${TOKEN_DIR:-}" ] || exit 0
-          if [ -s "$TOKEN_DIR/pid" ]; then kill "$(head -n 1 "$TOKEN_DIR/pid")" || true; fi
-          if [ -s "$TOKEN_DIR/token" ]; then ./gh-token revoke -t "$(cat "$TOKEN_DIR/token")" || true; fi
+          token="$(cat "$TOKEN_DIR/token")"
+          ./gh-token stop "$TOKEN_DIR"
+          tail -n 3 "$TOKEN_DIR/refresh.log"
+          # devcontainer-init starts the refresher with --revoke-on-exit.
+          for _ in $(seq 1 30); do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "https://api.github.com/installation/repositories")"
+            [ "$status" = 401 ] && break
+            sleep 2
+          done
+          test "$status" = 401 || { echo "::error::expected the token to be revoked when stopped, still $status"; exit 1; }

@@ -6,11 +6,13 @@
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "initializeCommand": "bash .devcontainer/gh-token/host-init.sh \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
+  "initializeCommand": "gh token devcontainer-init \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
   "mounts": [
     "source=${localEnv:HOME}/.cache/gh-token/${devcontainerId},target=/run/gh-token,type=bind,readonly"
   ],
   "postCreateCommand": "bash .devcontainer/gh-token/post-create.sh",
+  "postAttachCommand": "bash .devcontainer/gh-token/post-attach.sh",
+  "remoteEnv": { "SSH_AUTH_SOCK": "" },
   "customizations": {
     "codespaces": {
       "repositories": {

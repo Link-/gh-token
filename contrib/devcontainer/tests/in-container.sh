@@ -53,6 +53,14 @@ case "$check" in
     echo "gh and git use the scoped token"
     ;;
 
+  no-ssh-agent)
+    [ -z "${SSH_AUTH_SOCK:-}" ] || fail "SSH_AUTH_SOCK is set: $SSH_AUTH_SOCK"
+    if compgen -G "/tmp/vscode-ssh-auth-*.sock" >/dev/null; then
+      fail "a forwarded SSH agent socket is still there"
+    fi
+    echo "no SSH agent in the container"
+    ;;
+
   push-refused)
     branch="gh-token-it/$run_id"
     git checkout -q -B "$branch"
