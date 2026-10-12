@@ -117,6 +117,10 @@ func GenerateFlags() []cli.Flag {
 			Name:  "revoke-on-exit",
 			Usage: "With --refresh, revoke the current token on SIGINT or SIGTERM",
 		},
+		&cli.DurationFlag{
+			Name:  "max-lifetime",
+			Usage: "With --refresh, stop (and revoke with --revoke-on-exit) after this long, e.g. 12h. Default: run until stopped",
+		},
 		&cli.StringFlag{
 			Name:  "pid-file",
 			Usage: "With --refresh, a pid file that keeps a second refresher with the same scope from starting",

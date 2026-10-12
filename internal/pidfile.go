@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -76,9 +77,9 @@ func readPIDFile(path string) (int, string, error) {
 	return pid, hash, nil
 }
 
-// processAlive reports whether pid is a running process. On Linux it also
-// checks that the process looks like a refresher, so a recycled PID isn't
-// mistaken for one.
+// processAlive reports whether pid is a running gh-token refresher. Where
+// the command line can be read (/proc on Linux, ps elsewhere on Unix) it
+// must contain --refresh, so a recycled PID isn't mistaken for one.
 func processAlive(pid int) bool {
 	p, err := os.FindProcess(pid)
 	if err != nil {
@@ -93,6 +94,9 @@ func processAlive(pid int) bool {
 	}
 	if cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid)); err == nil {
 		return strings.Contains(string(cmdline), "--refresh")
+	}
+	if out, err := exec.Command("ps", "-o", "command=", "-p", strconv.Itoa(pid)).Output(); err == nil {
+		return strings.Contains(string(out), "--refresh")
 	}
 	return true
 }

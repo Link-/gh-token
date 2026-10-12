@@ -30,6 +30,13 @@ func main() {
 				Action: internal.Revoke,
 			},
 			{
+				Name:      "stop",
+				Usage:     "Stop the refresher keeping a token directory fresh (started with generate --refresh --pid-file)",
+				ArgsUsage: "<token directory or pid file>",
+				Flags:     internal.StopFlags(),
+				Action:    internal.Stop,
+			},
+			{
 				Name:   "installations",
 				Usage:  "List GitHub App installations",
 				Flags:  internal.InstallationsFlags(),

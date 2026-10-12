@@ -15,16 +15,27 @@ type tokenSidecar struct {
 	Permissions         map[string]string `json:"permissions,omitempty"`
 	RepositorySelection string            `json:"repository_selection,omitempty"`
 	Repositories        []string          `json:"repositories,omitempty"`
+	tokenOwner
+}
+
+// tokenOwner says which process keeps the token file fresh and for which
+// workspace, so a stopped container's refresher can be found and stopped.
+type tokenOwner struct {
+	// PID of the refresher; empty when the token was written once.
+	PID       int       `json:"pid,omitempty"`
+	StartedAt time.Time `json:"started_at,omitzero"`
+	// Workspace is the clone the current repository was read from.
+	Workspace string `json:"workspace,omitempty"`
 }
 
 // writeTokenFiles writes the token (plus a trailing newline) to path and its
 // metadata to path.json, each atomically.
-func writeTokenFiles(path string, token *mintedToken) error {
+func writeTokenFiles(path string, token *mintedToken, owner tokenOwner) error {
 	if err := writeFileAtomic(path, []byte(token.GetToken()+"\n")); err != nil {
 		return fmt.Errorf("unable to write token file: %w", err)
 	}
 
-	sidecar := tokenSidecar{}
+	sidecar := tokenSidecar{tokenOwner: owner}
 	if token.details != nil {
 		sidecar.ExpiresAt = token.details.ExpiresAt
 		sidecar.Permissions = token.details.Permissions

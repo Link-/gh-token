@@ -375,6 +375,7 @@ Before minting, the requested permissions are compared with the installation's, 
 | `--refresh-before` | How long before expiry to re-mint (default `10m`). |
 | `--revoke-on-exit` | With `--refresh`, revoke the current token on SIGINT or SIGTERM. |
 | `--pid-file` | With `--refresh`, don't start a second refresher with the same scope. |
+| `--max-lifetime` | With `--refresh`, stop after this long (for example `12h`). |
 
 ### The current repository
 
@@ -462,11 +463,13 @@ The [Scoped Token Integration](.github/workflows/integration-scoped.yml) workflo
 
 Installation tokens expire after one hour. The refresher re-mints the token 10 minutes before expiry and atomically replaces the file; on failure it keeps the old token and retries with backoff (at most every 5 minutes). The shim and credential helper read the file on every call, so nothing in the container needs restarting. `initializeCommand` runs on every container start: if a refresher with the same scope is already running it is reused, if it has a different scope (you changed `devcontainer.json`) `host-init.sh` fails and asks you to stop it.
 
-The refresher keeps running after the container stops. Stop it with:
+The refresher keeps running after the container stops. Its `token.json` records its `pid`, when it started and the `workspace` it serves, so you can tell the directories under `~/.cache/gh-token/` apart. Stop one with:
 
 ```shell
-kill "$(head -n 1 ~/.cache/gh-token/<devcontainerId>/pid)"
+gh token stop ~/.cache/gh-token/<devcontainerId>
 ```
+
+`gh token stop` only signals the process if it really is a gh-token refresher, so a stale pid file never stops an unrelated process. A refresher started with `--revoke-on-exit` revokes its token when stopped. To have refreshers end on their own, pass `--max-lifetime` (for example `12h`) to `generate --refresh`.
 
 The scope is read **once**, when the refresher starts. Later refreshes reuse the same request and never re-read `devcontainer.json` or the git remote: the agent can edit files in the workspace, and that must not widen the next token. This is a security property, not an oversight.
 

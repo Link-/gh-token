@@ -52,7 +52,9 @@ type refresher struct {
 	wait          func(ctx context.Context, d time.Duration) error
 	jitter        func(max time.Duration) time.Duration
 	refreshBefore time.Duration
-	log           func(format string, args ...any)
+	// stopAt, when set, ends the refresher (as if signalled) at that time.
+	stopAt time.Time
+	log    func(format string, args ...any)
 }
 
 // run re-mints the token refreshBefore its expiry until ctx is cancelled.
@@ -68,7 +70,14 @@ func (r *refresher) run(ctx context.Context, current *mintedToken) error {
 			deadline = r.now().Add(r.backoff(failures))
 		}
 
+		if !r.stopAt.IsZero() && r.stopAt.Before(deadline) {
+			deadline = r.stopAt
+		}
 		if err := r.waitUntil(ctx, deadline); err != nil {
+			return r.shutdown(current)
+		}
+		if !r.stopAt.IsZero() && !r.now().Before(r.stopAt) {
+			r.log("maximum lifetime reached")
 			return r.shutdown(current)
 		}
 

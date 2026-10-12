@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -354,6 +355,14 @@ func TestGenerateRefreshEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ghs_3\n", string(onDisk))
 
+	var sidecar tokenSidecar
+	b, err := os.ReadFile(outPath + ".json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(b, &sidecar))
+	assert.Equal(t, os.Getpid(), sidecar.PID)
+	assert.Equal(t, start, sidecar.StartedAt)
+	assert.Empty(t, sidecar.Workspace, "no current repository, so no workspace")
+
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["DELETE https://api.github.com/installation/token"], "revoke on exit")
 	_, err = os.Stat(pidPath)
@@ -368,9 +377,11 @@ func TestGenerateRefreshFlagErrors(t *testing.T) {
 		expectedError string
 	}{
 		{[]string{"--refresh"}, "--refresh requires --output-file"},
-		{[]string{"--output-file", "x", "--pid-file", "p"}, "--revoke-on-exit and --pid-file require --refresh"},
-		{[]string{"--output-file", "x", "--revoke-on-exit"}, "--revoke-on-exit and --pid-file require --refresh"},
+		{[]string{"--output-file", "x", "--pid-file", "p"}, "--revoke-on-exit, --pid-file and --max-lifetime require --refresh"},
+		{[]string{"--output-file", "x", "--revoke-on-exit"}, "--revoke-on-exit, --pid-file and --max-lifetime require --refresh"},
 		{[]string{"--output-file", "x", "--refresh", "--refresh-before", "55m"}, "--refresh-before must be between 0 and 50m0s; tokens live for one hour"},
+		{[]string{"--output-file", "x", "--max-lifetime", "1h"}, "--revoke-on-exit, --pid-file and --max-lifetime require --refresh"},
+		{[]string{"--output-file", "x", "--refresh", "--max-lifetime", "-1h"}, "--max-lifetime must not be negative"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.expectedError, func(t *testing.T) {
@@ -378,4 +389,49 @@ func TestGenerateRefreshFlagErrors(t *testing.T) {
 			assert.EqualError(t, err, tt.expectedError)
 		})
 	}
+}
+
+func TestRefresherMaxLifetime(t *testing.T) {
+	start := time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)
+	clock := &fakeClock{now: start}
+
+	var mintTimes []time.Time
+	var revoked []string
+	r := newTestRefresher(clock, func() (*mintedToken, error) {
+		mintTimes = append(mintTimes, clock.now)
+		return tokenExpiring("ghs_new", clock.now.Add(time.Hour)), nil
+	}, &[]string{})
+	r.stopAt = start.Add(90 * time.Minute)
+	r.revoke = func(token string) error {
+		revoked = append(revoked, token)
+		return nil
+	}
+
+	require.NoError(t, r.run(context.Background(), tokenExpiring("ghs_old", start.Add(time.Hour))))
+	assert.Equal(t, []time.Time{start.Add(50 * time.Minute)}, mintTimes, "one refresh before the lifetime ends")
+	assert.Equal(t, start.Add(90*time.Minute), clock.now, "stops exactly at the maximum lifetime")
+	assert.Equal(t, []string{"ghs_new"}, revoked)
+}
+
+func TestGenerateWorkspaceInSidecar(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	clone := initGitRepo(t, map[string]string{"origin": "https://github.com/my-org/app.git"})
+	mockInstallationPermissions(broadInstallationPermissions)
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-org/app/installation", httpmock.NewStringResponder(200, `{"id": 4}`))
+	recordTokenRequests("https://api.github.com/app/installations/4/access_tokens",
+		`{"token": "ghs_1", "expires_at": "2030-01-01T00:00:00Z", "permissions": {"contents": "read"}, "repository_selection": "selected"}`)
+
+	outPath := filepath.Join(t.TempDir(), "token")
+	_, _, err := runGenerate(t, "-i", "123", "-k", testKey, "-c", "--git-dir", clone, "-p", "contents=read", "--output-file", outPath, "--silent")
+	require.NoError(t, err)
+
+	var sidecar tokenSidecar
+	b, err := os.ReadFile(outPath + ".json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(b, &sidecar))
+	assert.Equal(t, clone, sidecar.Workspace)
+	assert.Zero(t, sidecar.PID, "a one-off token has no refresher")
+	assert.NotContains(t, string(b), "started_at")
 }

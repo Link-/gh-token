@@ -38,7 +38,7 @@ func TestWriteTokenFiles(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "nested", "gh-token")
 	path := filepath.Join(dir, "token")
 
-	require.NoError(t, writeTokenFiles(path, testMintedToken("ghs_one")))
+	require.NoError(t, writeTokenFiles(path, testMintedToken("ghs_one"), tokenOwner{}))
 
 	b, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestWriteTokenFiles(t *testing.T) {
 	}`, string(sidecar))
 
 	// Overwrite, and leave no temp files behind.
-	require.NoError(t, writeTokenFiles(path, testMintedToken("ghs_two")))
+	require.NoError(t, writeTokenFiles(path, testMintedToken("ghs_two"), tokenOwner{}))
 	b, err = os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, "ghs_two\n", string(b))

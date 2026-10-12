@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -47,6 +48,7 @@ type scopeOptions struct {
 	refreshBefore      time.Duration
 	revokeOnExit       bool
 	pidFile            string
+	maxLifetime        time.Duration
 }
 
 func readScopeOptions(c *cli.Context) *scopeOptions {
@@ -66,6 +68,7 @@ func readScopeOptions(c *cli.Context) *scopeOptions {
 		refreshBefore:      c.Duration("refresh-before"),
 		revokeOnExit:       c.Bool("revoke-on-exit"),
 		pidFile:            c.String("pid-file"),
+		maxLifetime:        c.Duration("max-lifetime"),
 	}
 }
 
@@ -73,7 +76,7 @@ func readScopeOptions(c *cli.Context) *scopeOptions {
 func (o *scopeOptions) active() bool {
 	return o.scopeFile != "" || len(o.repositories) > 0 || len(o.permissions) > 0 ||
 		o.mergePermissions || o.printRequest || o.verifyInstallation || o.currentRepo ||
-		o.outputFile != "" || o.refresh || o.revokeOnExit || o.pidFile != ""
+		o.outputFile != "" || o.refresh || o.revokeOnExit || o.pidFile != "" || o.maxLifetime != 0
 }
 
 // validate checks flag combinations that don't need any I/O.
@@ -84,8 +87,11 @@ func (o *scopeOptions) validate(installationID string, tokenOnly bool) error {
 	if o.refresh && o.outputFile == "" {
 		return fmt.Errorf("--refresh requires --output-file")
 	}
-	if (o.revokeOnExit || o.pidFile != "") && !o.refresh {
-		return fmt.Errorf("--revoke-on-exit and --pid-file require --refresh")
+	if (o.revokeOnExit || o.pidFile != "" || o.maxLifetime != 0) && !o.refresh {
+		return fmt.Errorf("--revoke-on-exit, --pid-file and --max-lifetime require --refresh")
+	}
+	if o.maxLifetime < 0 {
+		return fmt.Errorf("--max-lifetime must not be negative")
 	}
 	if o.refreshBefore < 0 || o.refreshBefore > maxRefreshBefore {
 		return fmt.Errorf("--refresh-before must be between 0 and %s; tokens live for one hour", maxRefreshBefore)
@@ -282,6 +288,7 @@ type scopedGeneration struct {
 	jwt            string
 	tokenOnly      bool
 	silent         bool
+	owner          tokenOwner
 }
 
 func (g *scopedGeneration) warn(format string, args ...any) {
@@ -375,7 +382,8 @@ func (g *scopedGeneration) run() error {
 	}
 
 	if g.opts.outputFile != "" {
-		if err := writeTokenFiles(g.opts.outputFile, token); err != nil {
+		g.owner = g.tokenOwner(scope)
+		if err := writeTokenFiles(g.opts.outputFile, token, g.owner); err != nil {
 			return err
 		}
 		g.log("token written to %s, expires at %s", g.opts.outputFile, token.GetExpiresAt().UTC().Format(time.RFC3339))
@@ -440,7 +448,7 @@ func (g *scopedGeneration) refreshLoop(installationID string, body *accessTokenR
 			}
 			return mintToken(g.hostname, jwt, installationID, body)
 		},
-		write:         func(t *mintedToken) error { return writeTokenFiles(g.opts.outputFile, t) },
+		write:         func(t *mintedToken) error { return writeTokenFiles(g.opts.outputFile, t, g.owner) },
 		now:           refreshNow,
 		wait:          refreshWait,
 		jitter:        randomJitter,
@@ -450,9 +458,32 @@ func (g *scopedGeneration) refreshLoop(installationID string, body *accessTokenR
 	if g.opts.revokeOnExit {
 		r.revoke = func(token string) error { return revokeToken(g.hostname, token) }
 	}
+	if g.opts.maxLifetime > 0 {
+		r.stopAt = g.owner.StartedAt.Add(g.opts.maxLifetime)
+	}
 	g.log("refreshing %s %s before expiry; stop with SIGINT or SIGTERM", g.opts.outputFile, g.opts.refreshBefore)
 
 	return r.run(ctx, first)
+}
+
+// tokenOwner describes this process for the token file's metadata.
+func (g *scopedGeneration) tokenOwner(scope *ScopeRequest) tokenOwner {
+	var owner tokenOwner
+	if g.opts.refresh {
+		owner.PID = os.Getpid()
+		owner.StartedAt = refreshNow().UTC().Truncate(time.Second)
+	}
+	if scope != nil {
+		for _, e := range scope.Entries {
+			if strings.Contains(e.Source, "git remote") {
+				if abs, err := filepath.Abs(g.opts.gitDir); err == nil {
+					owner.Workspace = abs
+				}
+				break
+			}
+		}
+	}
+	return owner
 }
 
 // scopeHash identifies what a refresher mints, so a second refresher for
