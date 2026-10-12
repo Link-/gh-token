@@ -605,3 +605,60 @@ func TestGenerateInstallationPermissionsUnavailable(t *testing.T) {
 	assert.Equal(t, "ghs_y\n", out)
 	assert.Contains(t, errOut, "Warning: could not compare the requested permissions with the installation's")
 }
+
+func TestGenerateCurrentRepoMoved(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	clone := initGitRepo(t, map[string]string{"origin": "git@github.com:OldOrg/app.git"})
+	scope := writeTempFile(t, "devcontainer.json", `{
+		"customizations": {
+			"codespaces": {"repositories": {"NewOrg/shared": {"permissions": {"contents": "read"}}}},
+			"gh-token": {"currentRepository": {"permissions": {"contents": "read"}}}
+		}
+	}`)
+	mockInstallationPermissions(broadInstallationPermissions)
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/NewOrg/shared/installation", httpmock.NewStringResponder(200, `{"id": 1}`))
+
+	movedTo := func(location string) httpmock.Responder {
+		return func(*http.Request) (*http.Response, error) {
+			resp := httpmock.NewStringResponse(http.StatusMovedPermanently, "")
+			resp.Header.Set("Location", location)
+			return resp, nil
+		}
+	}
+
+	t.Run("transferred", func(t *testing.T) {
+		httpmock.RegisterResponder("GET", "https://api.github.com/repos/OldOrg/app/installation", movedTo("https://api.github.com/repositories/42/installation"))
+		httpmock.RegisterResponder("GET", "https://api.github.com/repositories/42/installation",
+			httpmock.NewStringResponder(200, `{"id": 1, "account": {"login": "NewOrg"}}`))
+
+		out, errOut, err := runGenerate(t, "-i", "123", "-k", testKey, "-f", scope, "--git-dir", clone, "--print-request")
+		require.NoError(t, err)
+		assert.Contains(t, out, "# repository: NewOrg/app (current repository from git remote \"origin\")\n")
+		assert.Contains(t, out, `{"repositories":["shared","app"],"permissions":{"contents":"read"}}`)
+		assert.Contains(t, errOut, "Warning: OldOrg/app has moved to the NewOrg account; using NewOrg/app. Update the remote with git remote set-url")
+	})
+
+	t.Run("renamed_same_owner", func(t *testing.T) {
+		httpmock.RegisterResponder("GET", "https://api.github.com/repos/OldOrg/app/installation", movedTo("https://api.github.com/repositories/43/installation"))
+		httpmock.RegisterResponder("GET", "https://api.github.com/repositories/43/installation",
+			httpmock.NewStringResponder(200, `{"id": 1, "account": {"login": "oldorg"}}`))
+
+		_, errOut, err := runGenerate(t, "-i", "123", "-k", testKey, "-f", scope, "--git-dir", clone, "--print-request")
+		require.Error(t, err)
+		assert.Contains(t, errOut, "Warning: GitHub redirects OldOrg/app, so the repository was probably renamed")
+		assert.Contains(t, err.Error(), "repositories span multiple owners")
+		assert.Contains(t, err.Error(), "if the repository was renamed or transferred, the git remote may still use the old owner; check git remote -v")
+	})
+
+	t.Run("not_moved", func(t *testing.T) {
+		httpmock.RegisterResponder("GET", "https://api.github.com/repos/OldOrg/app/installation",
+			httpmock.NewStringResponder(200, `{"id": 2, "account": {"login": "OldOrg"}}`))
+
+		_, errOut, err := runGenerate(t, "-i", "123", "-k", testKey, "-f", scope, "--git-dir", clone, "--print-request")
+		require.Error(t, err)
+		assert.NotContains(t, errOut, "Warning")
+		assert.Contains(t, err.Error(), "check git remote -v")
+	})
+}

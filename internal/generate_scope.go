@@ -146,7 +146,11 @@ func parsePermissionFlags(values []string) (*Permissions, error) {
 // buildScope assembles the scope from a file or the ad hoc flags, adding the
 // clone's own repository when --current-repo is in effect. It returns nil
 // when no scope was requested (the token covers the whole installation).
-func (o *scopeOptions) buildScope(apiHostname string) (*ScopeFile, error) {
+// movedFunc reports the current owner of a repository named by the git
+// remote, and a note when it moved; see repositoryMoved.
+type movedFunc func(owner, repo string) (string, string)
+
+func (o *scopeOptions) buildScope(apiHostname string, moved movedFunc, warn func(string, ...any)) (*ScopeFile, error) {
 	flagPerms, err := parsePermissionFlags(o.permissions)
 	if err != nil {
 		return nil, err
@@ -200,6 +204,13 @@ func (o *scopeOptions) buildScope(apiHostname string) (*ScopeFile, error) {
 		return nil, fmt.Errorf("failed resolving the current repository: %w", err)
 	}
 	source := fmt.Sprintf("git remote %q", o.gitRemote)
+	if moved != nil {
+		current, note := moved(owner, repo)
+		if note != "" {
+			warn("%s", note)
+		}
+		owner = current
+	}
 
 	// With ad hoc flags the --permission set applies to every repository.
 	var fileFlagPerms *Permissions
@@ -286,7 +297,9 @@ func (g *scopedGeneration) log(format string, args ...any) {
 }
 
 func (g *scopedGeneration) run() error {
-	scopeFile, err := g.opts.buildScope(g.hostname)
+	scopeFile, err := g.opts.buildScope(g.hostname, func(owner, repo string) (string, string) {
+		return repositoryMoved(g.hostname, g.jwt, owner, repo)
+	}, g.warn)
 	if err != nil {
 		return err
 	}

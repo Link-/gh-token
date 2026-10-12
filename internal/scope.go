@@ -258,8 +258,15 @@ func BuildScopeRequest(s *ScopeFile, mergePermissions bool) (*ScopeRequest, erro
 		for _, o := range ownerOrder {
 			lines = append(lines, fmt.Sprintf("  %s: %s", o, strings.Join(owners[o], ", ")))
 		}
-		return nil, fmt.Errorf("repositories span multiple owners:\n%s\na token belongs to a single installation, so all repositories must share one owner; split the scope file or run once per owner",
-			strings.Join(lines, "\n"))
+		hint := ""
+		for _, e := range s.Entries {
+			if strings.Contains(e.Source, "git remote") {
+				hint = "\nif the repository was renamed or transferred, the git remote may still use the old owner; check git remote -v"
+				break
+			}
+		}
+		return nil, fmt.Errorf("repositories span multiple owners:\n%s\na token belongs to a single installation, so all repositories must share one owner; split the scope file or run once per owner%s",
+			strings.Join(lines, "\n"), hint)
 	}
 
 	// Repositories, honouring owner/* and rejecting duplicates.

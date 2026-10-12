@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 // errNotInstalled is returned when a lookup gets a 404.
@@ -15,6 +16,12 @@ var errNotInstalled = errors.New("not installed")
 type installationResponse struct {
 	ID          int64             `json:"id"`
 	Permissions map[string]string `json:"permissions"`
+	Account     struct {
+		Login string `json:"login"`
+	} `json:"account"`
+	// redirected is true when GitHub redirected the request, as it does for
+	// renamed or transferred repositories.
+	redirected bool
 }
 
 // getInstallation GETs an installation resource authenticated with the JWT.
@@ -50,8 +57,27 @@ func getInstallation(hostname, jwt, path string) (*installationResponse, error) 
 	if err := json.Unmarshal(b, &installation); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal response body: %w", err)
 	}
+	installation.redirected = resp.Request != nil && resp.Request.URL.String() != endpoint
 
 	return &installation, nil
+}
+
+// repositoryMoved checks whether owner/repo, as the git remote names it, was
+// renamed or transferred. GitHub redirects the installation lookup for a
+// moved repository, and the installation's account is its current owner.
+// It returns the current owner (unchanged when not moved) and a note for
+// the user, or empty values when the lookup fails; the installation lookup
+// later reports real problems.
+func repositoryMoved(hostname, jwt, owner, repo string) (string, string) {
+	installation, err := getInstallation(hostname, jwt, fmt.Sprintf("/repos/%s/%s/installation", owner, repo))
+	if err != nil || !installation.redirected {
+		return owner, ""
+	}
+	current := installation.Account.Login
+	if current == "" || strings.EqualFold(current, owner) {
+		return owner, fmt.Sprintf("GitHub redirects %s/%s, so the repository was probably renamed; update the remote with git remote set-url", owner, repo)
+	}
+	return current, fmt.Sprintf("%s/%s has moved to the %s account; using %s/%s. Update the remote with git remote set-url", owner, repo, current, current, repo)
 }
 
 // lookupInstallationID finds the App's installation for the scope's owner:

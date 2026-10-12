@@ -385,7 +385,9 @@ Like Codespaces, the clone's own repository can be included without naming it, s
 3. `--permission` flags;
 4. an `owner/*` entry covering it;
 
-otherwise it's an error. There is deliberately no default permission set. The simplest local use needs no file at all:
+otherwise it's an error. There is deliberately no default permission set.
+
+If the repository was transferred to another owner, a remote that still uses the old owner keeps working for git because GitHub redirects it. `gh token` follows that redirect, uses the current owner and warns you to update the remote with `git remote set-url`. The simplest local use needs no file at all:
 
 ```shell
 gh token generate -i 1122334 -k ./private-key.pem --current-repo -p contents=write -p pull_requests=write
