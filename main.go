@@ -30,6 +30,13 @@ func main() {
 				Action: internal.Revoke,
 			},
 			{
+				Name:      "devcontainer-init",
+				Usage:     "Start a refresher for a devcontainer's token directory (run from initializeCommand)",
+				ArgsUsage: "<token directory>",
+				Flags:     internal.DevcontainerInitFlags(),
+				Action:    internal.DevcontainerInit,
+			},
+			{
 				Name:      "stop",
 				Usage:     "Stop the refresher keeping a token directory fresh (started with generate --refresh --pid-file)",
 				ArgsUsage: "<token directory or pid file>",
