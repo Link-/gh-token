@@ -50,8 +50,43 @@ rm "$GH_TOKEN_DIR/host"
 
 mv "$GH_TOKEN_DIR/token" "$GH_TOKEN_DIR/token.bak"
 out="$(printf 'protocol=https\nhost=github.com\n\n' | bash "$helper" get 2>"$tmp/err")"
-check "helper get without token prints nothing" "" "$out"
+check "helper get without token answers quit" "quit=1" "$out"
 grep -q "no token" "$tmp/err" && pass "helper explains missing token" || fail "helper explains missing token"
+out="$(printf 'protocol=https\nhost=gitlab.com\n\n' | bash "$helper" get 2>/dev/null)"
+check "helper without token leaves other hosts alone" "" "$out"
+mv "$GH_TOKEN_DIR/token.bak" "$GH_TOKEN_DIR/token"
+
+# Through git, with a second helper standing in for forwarded host credentials.
+fallback="$tmp/fallback-helper"
+cat >"$fallback" <<'FAKE'
+#!/bin/sh
+[ "$1" = get ] && printf 'username=x\npassword=HOST-CREDENTIAL\n'
+exit 0
+FAKE
+chmod +x "$fallback"
+git_fill() { # host
+  printf 'protocol=https\nhost=%s\n\n' "$1" |
+    HOME="$tmp/githome" GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 git \
+      -c "credential.helper=$helper" -c "credential.helper=$fallback" credential fill 2>&1
+}
+mkdir -p "$tmp/githome"
+out="$(git_fill github.com || true)"
+case "$out" in
+  *"password=ghs_abc"*) pass "git credential fill uses the token" ;;
+  *) fail "git credential fill uses the token: $out" ;;
+esac
+mv "$GH_TOKEN_DIR/token" "$GH_TOKEN_DIR/token.bak"
+out="$(git_fill github.com || true)"
+case "$out" in
+  *HOST-CREDENTIAL*) fail "without a token git must not fall back to the next helper: $out" ;;
+  *"told us to quit"*) pass "without a token git stops instead of falling back" ;;
+  *) fail "without a token git stops instead of falling back: $out" ;;
+esac
+out="$(git_fill gitlab.com || true)"
+case "$out" in
+  *"password=HOST-CREDENTIAL"*) pass "other hosts still reach the next helper" ;;
+  *) fail "other hosts still reach the next helper: $out" ;;
+esac
 mv "$GH_TOKEN_DIR/token.bak" "$GH_TOKEN_DIR/token"
 
 # --- gh shim ---------------------------------------------------------------

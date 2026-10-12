@@ -5,7 +5,9 @@
 #   git config --global credential.https://github.com.helper /usr/local/bin/git-credential-gh-token
 #
 # Answers "get" for the token's host over https with the current token from
-# the mounted file. "store" and "erase" are ignored: the token is managed on
+# the mounted file. Without a token it answers quit=1, so git doesn't fall
+# back to other helpers for that host. Other hosts and protocols are left to
+# other helpers. "store" and "erase" are ignored: the token is managed on
 # the host.
 set -euo pipefail
 
@@ -34,6 +36,9 @@ fi
 
 if [ ! -s "$token_dir/token" ]; then
   echo "git-credential-gh-token: no token at $token_dir/token; is the host refresher running?" >&2
+  # Stop here: no fallback to later helpers (such as VS Code's forwarding
+  # of the host's credentials), which can do far more than the token.
+  echo "quit=1"
   exit 0
 fi
 
