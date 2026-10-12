@@ -9,14 +9,20 @@ token_dir="${GH_TOKEN_DIR:-/run/gh-token}"
 bin_dir="${GH_TOKEN_BIN_DIR:-/usr/local/bin}"
 libexec_dir="${GH_TOKEN_LIBEXEC_DIR:-/usr/local/libexec/gh-token}"
 
-sudo_cmd=()
+# Run a command as root where bin_dir isn't writable. A function rather
+# than an array: bash 3.2 (macOS) treats an empty "${array[@]}" as unbound
+# under set -u.
+use_sudo=false
 if [ "$(id -u)" -ne 0 ] && [ ! -w "$bin_dir" ]; then
   command -v sudo >/dev/null 2>&1 || {
     echo "gh-token post-create: need root or sudo to install into $bin_dir" >&2
     exit 1
   }
-  sudo_cmd=(sudo)
+  use_sudo=true
 fi
+as_root() {
+  if [ "$use_sudo" = true ]; then sudo "$@"; else "$@"; fi
+}
 
 if [ ! -s "$token_dir/token" ]; then
   # Optional mode on a host without gh-token set up, or a failed refresher:
@@ -41,16 +47,16 @@ if [ -z "$real_gh" ]; then
 fi
 # A real gh at the shim's own path is moved out of the way.
 if [ "$real_gh" = "$bin_dir/gh" ]; then
-  "${sudo_cmd[@]}" mkdir -p "$libexec_dir"
-  "${sudo_cmd[@]}" mv "$bin_dir/gh" "$libexec_dir/gh"
+  as_root mkdir -p "$libexec_dir"
+  as_root mv "$bin_dir/gh" "$libexec_dir/gh"
   real_gh="$libexec_dir/gh"
 fi
 
 tmp="$(mktemp)"
 sed "s|@REAL_GH@|$real_gh|" "$here/gh-shim.sh" >"$tmp"
-"${sudo_cmd[@]}" install -m 0755 "$tmp" "$bin_dir/gh"
+as_root install -m 0755 "$tmp" "$bin_dir/gh"
 rm -f "$tmp"
-"${sudo_cmd[@]}" install -m 0755 "$here/git-credential-gh-token.sh" "$bin_dir/git-credential-gh-token"
+as_root install -m 0755 "$here/git-credential-gh-token.sh" "$bin_dir/git-credential-gh-token"
 hash -r
 
 host="github.com"
