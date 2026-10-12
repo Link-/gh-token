@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/jarcoal/httpmock"
@@ -58,6 +59,15 @@ func recordTokenRequests(endpoint, response string) *[]string {
 	return &bodies
 }
 
+// mockInstallationPermissions answers GET /app/installations/{id} on any
+// host with the given permissions JSON.
+func mockInstallationPermissions(perms string) {
+	httpmock.RegisterRegexpResponder("GET", regexp.MustCompile(`/app/installations/\d+$`),
+		httpmock.NewStringResponder(200, `{"id": 1, "permissions": `+perms+`}`))
+}
+
+const broadInstallationPermissions = `{"actions": "write", "checks": "read", "contents": "write", "issues": "write", "metadata": "read", "pull_requests": "write", "workflows": "write"}`
+
 const scopedTokenResponse = `{
   "token": "ghs_scoped",
   "expires_at": "2030-01-01T00:00:00Z",
@@ -69,6 +79,7 @@ const scopedTokenResponse = `{
 func TestGenerateWithScopeFile(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
+	mockInstallationPermissions(broadInstallationPermissions)
 
 	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-user/some-fork/installation",
 		httpmock.NewStringResponder(200, `{"id": 12345}`))
@@ -85,6 +96,7 @@ func TestGenerateWithScopeFile(t *testing.T) {
 func TestGenerateWithScopeFileJSONOutput(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
+	mockInstallationPermissions(broadInstallationPermissions)
 
 	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-user/some-fork/installation",
 		httpmock.NewStringResponder(200, `{"id": 12345}`))
@@ -99,6 +111,7 @@ func TestGenerateWithScopeFileJSONOutput(t *testing.T) {
 func TestGenerateScopedPrintRequest(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
+	mockInstallationPermissions(broadInstallationPermissions)
 
 	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-user/some-fork/installation",
 		httpmock.NewStringResponder(200, `{"id": 12345}`))
@@ -107,6 +120,7 @@ func TestGenerateScopedPrintRequest(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "# installation: 12345 (looked up for my-user)\n"+
 		"# repository: my-user/some-fork (scope file)\n"+
+		"# granted: actions=write, checks=read, contents=write, issues=write, metadata=read, pull_requests=write, workflows=write\n"+
 		`{"repositories":["some-fork"],"permissions":{"actions":"write","checks":"read","contents":"write","workflows":"write"}}`+"\n", out)
 
 	info := httpmock.GetCallCountInfo()
@@ -116,6 +130,7 @@ func TestGenerateScopedPrintRequest(t *testing.T) {
 func TestGenerateScopedWildcardFallsBackToUser(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
+	mockInstallationPermissions(broadInstallationPermissions)
 
 	httpmock.RegisterResponder("GET", "https://api.github.com/orgs/my-user/installation", httpmock.NewStringResponder(404, `{}`))
 	httpmock.RegisterResponder("GET", "https://api.github.com/users/my-user/installation", httpmock.NewStringResponder(200, `{"id": 77}`))
@@ -146,6 +161,7 @@ func TestGenerateScopedReadAll(t *testing.T) {
 func TestGenerateScopedAdHocFlags(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
+	mockInstallationPermissions(broadInstallationPermissions)
 
 	bodies := recordTokenRequests("https://api.github.com/app/installations/9/access_tokens",
 		`{"token": "ghs_y", "permissions": {"contents": "write", "metadata": "read"}, "repository_selection": "selected"}`)
@@ -160,6 +176,7 @@ func TestGenerateScopedAdHocFlags(t *testing.T) {
 func TestGenerateScopedVerificationWarnings(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
+	mockInstallationPermissions(broadInstallationPermissions)
 
 	recordTokenRequests("https://api.github.com/app/installations/9/access_tokens",
 		`{"token": "ghs_y", "permissions": {"contents": "read", "issues": "write", "metadata": "read"}, "repository_selection": "all"}`)
@@ -193,6 +210,7 @@ func TestGenerateScopedVerifyInstallation(t *testing.T) {
 func TestGenerateScopedGHES(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
+	mockInstallationPermissions(broadInstallationPermissions)
 
 	httpmock.RegisterResponder("GET", "https://github.example.com/api/v3/repos/my-user/some-fork/installation",
 		httpmock.NewStringResponder(200, `{"id": 3}`))
@@ -507,4 +525,83 @@ func TestGenerateCurrentRepo(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMissingPermissions(t *testing.T) {
+	granted := map[string]string{"contents": "read", "issues": "write", "administration": "admin", "workflows": "write"}
+	tests := []struct {
+		name      string
+		requested map[string]string
+		expected  []string
+	}{
+		{name: "all_granted", requested: map[string]string{"contents": "read", "issues": "write", "workflows": "write"}},
+		{name: "lower_level_requested", requested: map[string]string{"issues": "read", "administration": "write"}},
+		{name: "missing", requested: map[string]string{"checks": "read"}, expected: []string{"checks: requested read, the installation has none"}},
+		{name: "read_granted_write_requested", requested: map[string]string{"contents": "write"}, expected: []string{"contents: requested write, the installation has read"}},
+		{name: "write_granted_admin_requested", requested: map[string]string{"issues": "admin"}, expected: []string{"issues: requested admin, the installation has write"}},
+		{
+			name:      "several_sorted",
+			requested: map[string]string{"pull_requests": "write", "checks": "read", "contents": "write"},
+			expected: []string{
+				"checks: requested read, the installation has none",
+				"contents: requested write, the installation has read",
+				"pull_requests: requested write, the installation has none",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, missingPermissions(tt.requested, granted))
+		})
+	}
+}
+
+func TestGenerateMissingPermissions(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-org/app/installation", httpmock.NewStringResponder(200, `{"id": 5}`))
+	mockInstallationPermissions(`{"contents": "read", "metadata": "read"}`)
+	bodies := recordTokenRequests("https://api.github.com/app/installations/5/access_tokens", `{"token": "ghs_x"}`)
+
+	args := []string{"-i", "123", "-k", testKey, "-r", "my-org/app", "-p", "contents=write", "-p", "checks=read"}
+	_, _, err := runGenerate(t, append(args, "-t")...)
+	assert.EqualError(t, err, "the scope asks for permissions installation 5 doesn't have:\n"+
+		"  checks: requested read, the installation has none\n"+
+		"  contents: requested write, the installation has read\n"+
+		"add them to the App's permissions; the installation owner must then accept the change")
+	assert.Empty(t, *bodies, "no token is requested when permissions are missing")
+
+	out, _, err := runGenerate(t, append(args, "--print-request")...)
+	assert.ErrorContains(t, err, "the scope asks for permissions installation 5 doesn't have")
+	assert.Contains(t, out, "# granted: contents=read, metadata=read\n")
+	assert.Contains(t, out, "# missing: checks: requested read, the installation has none\n")
+	assert.Contains(t, out, `{"repositories":["app"],"permissions":{"checks":"read","contents":"write"}}`)
+}
+
+func TestGenerateReadAllSkipsWriteOnlyPermissions(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder("GET", "https://api.github.com/repos/my-org/app/installation", httpmock.NewStringResponder(200, `{"id": 5}`))
+	mockInstallationPermissions(`{"contents": "write", "workflows": "write", "metadata": "read"}`)
+
+	out, _, err := runGenerate(t, "-i", "123", "-k", testKey, "-r", "my-org/app", "-p", "read-all", "--print-request")
+	require.NoError(t, err)
+	assert.NotContains(t, out, "# missing")
+	assert.Contains(t, out, `{"repositories":["app"],"permissions":{"contents":"read","metadata":"read"}}`)
+}
+
+func TestGenerateInstallationPermissionsUnavailable(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder("GET", "https://api.github.com/app/installations/9", httpmock.NewStringResponder(500, `boom`))
+	recordTokenRequests("https://api.github.com/app/installations/9/access_tokens",
+		`{"token": "ghs_y", "permissions": {"contents": "read", "metadata": "read"}, "repository_selection": "selected"}`)
+
+	out, errOut, err := runGenerate(t, "-i", "123", "-k", testKey, "-l", "9", "-r", "my-org/app", "-p", "contents=read", "-t")
+	require.NoError(t, err)
+	assert.Equal(t, "ghs_y\n", out)
+	assert.Contains(t, errOut, "Warning: could not compare the requested permissions with the installation's")
 }

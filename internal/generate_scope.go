@@ -320,19 +320,37 @@ func (g *scopedGeneration) run() error {
 	}
 
 	var body *accessTokenRequest
+	var granted map[string]string
+	var missing []string
 	if scope != nil {
-		if scope.ReadAll {
-			perms, err := installationPermissions(g.hostname, g.jwt, installationID)
+		if scope.ReadAll || scope.Permissions != nil {
+			granted, err = installationPermissions(g.hostname, g.jwt, installationID)
 			if err != nil {
-				return fmt.Errorf("failed expanding read-all: %w", err)
+				if scope.ReadAll {
+					return fmt.Errorf("failed expanding read-all: %w", err)
+				}
+				g.warn("could not compare the requested permissions with the installation's: %v", err)
 			}
-			expandReadAll(scope, perms)
+		}
+		if scope.ReadAll {
+			expandReadAll(scope, granted)
 		}
 		body = &accessTokenRequest{Repositories: scope.Repositories, Permissions: scope.Permissions}
+		if granted != nil {
+			missing = missingPermissions(body.Permissions, granted)
+		}
 	}
+	missingErr := missingPermissionsError(installationID, missing)
 
 	if g.opts.printRequest {
-		return printScopeRequest(installationID, installationSource, scope, body)
+		if err := printScopeRequest(installationID, installationSource, scope, body, granted, missing); err != nil {
+			return err
+		}
+		return missingErr
+	}
+	// GitHub would answer 422 without saying which permission is missing.
+	if missingErr != nil {
+		return missingErr
 	}
 
 	token, err := mintToken(g.hostname, g.jwt, installationID, body)
@@ -499,12 +517,18 @@ func (g *scopedGeneration) printToken(token *github.InstallationToken) error {
 // printScopeRequest prints what would be requested: comment lines describing
 // the installation and where each repository came from, then the JSON body
 // on the last line.
-func printScopeRequest(installationID, installationSource string, scope *ScopeRequest, body *accessTokenRequest) error {
+func printScopeRequest(installationID, installationSource string, scope *ScopeRequest, body *accessTokenRequest, granted map[string]string, missing []string) error {
 	_, _ = fmt.Fprintf(stdout, "# installation: %s (%s)\n", installationID, installationSource)
 	if scope != nil {
 		for _, e := range scope.Entries {
 			_, _ = fmt.Fprintf(stdout, "# repository: %s (%s)\n", e.Name(), e.Source)
 		}
+	}
+	if granted != nil {
+		_, _ = fmt.Fprintf(stdout, "# granted: %s\n", Permissions{Levels: granted})
+	}
+	for _, m := range missing {
+		_, _ = fmt.Fprintf(stdout, "# missing: %s\n", m)
 	}
 	if body == nil {
 		body = &accessTokenRequest{}
@@ -516,6 +540,31 @@ func printScopeRequest(installationID, installationSource string, scope *ScopeRe
 	_, _ = fmt.Fprintln(stdout, string(b))
 
 	return nil
+}
+
+// missingPermissions lists every requested permission the installation
+// doesn't have, or has at a lower level.
+func missingPermissions(requested, granted map[string]string) []string {
+	var missing []string
+	for _, name := range sortedKeys(requested) {
+		want := requested[name]
+		have, ok := granted[name]
+		switch {
+		case !ok:
+			missing = append(missing, fmt.Sprintf("%s: requested %s, the installation has none", name, want))
+		case permissionLevelRank[have] < permissionLevelRank[want]:
+			missing = append(missing, fmt.Sprintf("%s: requested %s, the installation has %s", name, want, have))
+		}
+	}
+	return missing
+}
+
+func missingPermissionsError(installationID string, missing []string) error {
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("the scope asks for permissions installation %s doesn't have:\n  %s\nadd them to the App's permissions; the installation owner must then accept the change",
+		installationID, strings.Join(missing, "\n  "))
 }
 
 // verifyMintedToken compares the minted token with the request and returns a

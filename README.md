@@ -356,7 +356,7 @@ An installation token belongs to one installation and carries **one** permission
 > [!WARNING]
 > `--merge-permissions` widens access: every repository in the token gets the union of the declared permissions. Prefer identical permission sets, or separate tokens.
 
-After minting, the token's permissions and repositories are compared with the request and any difference is printed as a warning on stderr (`--silent` hides warnings). Failed requests include GitHub's error message, which names the rejected repository or permission.
+Before minting, the requested permissions are compared with the installation's, and any that are missing or at too low a level are named (GitHub itself only answers that "the permissions requested are not granted"); `--print-request` shows the comparison as `# granted` and `# missing` lines. After minting, the token's permissions and repositories are compared with the request and any difference is printed as a warning on stderr (`--silent` hides warnings). Failed requests include GitHub's error message, which names the rejected repository or permission.
 
 ### Downscoping flags
 
