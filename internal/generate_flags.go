@@ -62,5 +62,72 @@ func GenerateFlags() []cli.Flag {
 			Aliases: []string{"s"},
 			Value:   false,
 		},
+		&cli.StringFlag{
+			Name:    "scope-file",
+			Usage:   "Path to a scope file or devcontainer.json declaring repositories and permissions (Codespaces format) to downscope the token to",
+			Aliases: []string{"f"},
+		},
+		&cli.StringSliceFlag{
+			Name:    "repository",
+			Usage:   "Repository to downscope the token to, as owner/repo (or a bare name with --installation-id). Repeatable",
+			Aliases: []string{"r"},
+		},
+		&cli.StringSliceFlag{
+			Name:    "permission",
+			Usage:   "Permission for the token, as name=level (read, write or admin), or read-all / write-all. Repeatable",
+			Aliases: []string{"p"},
+		},
+		&cli.BoolFlag{
+			Name:  "merge-permissions",
+			Usage: "Allow repositories with different permissions by giving the token the union of them. This widens access",
+		},
+		&cli.BoolFlag{
+			Name:  "print-request",
+			Usage: "Print the resolved installation ID and the access token request body, then exit without minting a token",
+		},
+		&cli.BoolFlag{
+			Name:    "current-repo",
+			Usage:   "Include the clone's own repository, read from its git remote (like Codespaces). Defaults to true for devcontainer-shaped scope files",
+			Aliases: []string{"c"},
+		},
+		&cli.StringFlag{
+			Name:  "git-dir",
+			Usage: "Clone to read the current repository from",
+			Value: ".",
+		},
+		&cli.StringFlag{
+			Name:  "git-remote",
+			Usage: "Git remote to read the current repository from",
+			Value: "origin",
+		},
+		&cli.StringFlag{
+			Name:  "output-file",
+			Usage: "Write the token atomically to this file (mode 0600) instead of stdout, plus metadata to <file>.json. Mount its directory, not the file, into containers",
+		},
+		&cli.BoolFlag{
+			Name:  "refresh",
+			Usage: "Stay running and re-mint the token into --output-file before it expires",
+		},
+		&cli.DurationFlag{
+			Name:  "refresh-before",
+			Usage: "With --refresh, how long before expiry to re-mint",
+			Value: defaultRefreshBefore,
+		},
+		&cli.BoolFlag{
+			Name:  "revoke-on-exit",
+			Usage: "With --refresh, revoke the current token on SIGINT or SIGTERM",
+		},
+		&cli.DurationFlag{
+			Name:  "max-lifetime",
+			Usage: "With --refresh, stop (and revoke with --revoke-on-exit) after this long, e.g. 12h. Default: run until stopped",
+		},
+		&cli.StringFlag{
+			Name:  "pid-file",
+			Usage: "With --refresh, a pid file that keeps a second refresher with the same scope from starting",
+		},
+		&cli.BoolFlag{
+			Name:  "verify-installation",
+			Usage: "With --installation-id and a scope, check that the ID matches the installation found for the scope's owner",
+		},
 	}
 }

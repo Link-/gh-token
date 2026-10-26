@@ -1,0 +1,15 @@
+// A devcontainer.json with comments and trailing commas.
+{
+  "name": "example",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "customizations": {
+    "vscode": { "extensions": ["golang.go"] },
+    "codespaces": {
+      "repositories": {
+        /* both repos share one permission set */
+        "my-org/app": { "permissions": { "contents": "write", "pull_requests": "write", } },
+        "my-org/shared-charts": { "permissions": { "contents": "write", "pull_requests": "write" } },
+      },
+    },
+  },
+}
