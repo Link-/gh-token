@@ -22,6 +22,7 @@ func createTestContextForInstallations(flags map[string]interface{}) *cli.Contex
 
 	// Set default values
 	defaults := map[string]interface{}{
+		"client-id":  "",
 		"app-id":     "",
 		"key":        "",
 		"base64-key": "",
@@ -91,9 +92,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "successful_list_installations_with_key_file",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "api.github.com",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "api.github.com",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://api.github.com/app/installations?per_page=100&page=0",
@@ -104,7 +105,7 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "successful_list_installations_with_base64_key",
 			flags: map[string]interface{}{
-				"app-id":     "123456",
+				"client-id":  "123456",
 				"base64-key": keyBase64,
 				"hostname":   "api.github.com",
 			},
@@ -117,9 +118,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "successful_list_multiple_installations",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "api.github.com",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "api.github.com",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://api.github.com/app/installations?per_page=100&page=0",
@@ -130,9 +131,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "successful_empty_installations_list",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "api.github.com",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "api.github.com",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://api.github.com/app/installations?per_page=100&page=0",
@@ -143,9 +144,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "successful_with_custom_hostname_without_api_path",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "github.company.com",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "github.company.com",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://github.company.com/api/v3/app/installations?per_page=100&page=0",
@@ -156,9 +157,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "successful_with_custom_hostname_with_api_path",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "github.company.com/api/v3",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "github.company.com/api/v3",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://github.company.com/api/v3/app/installations?per_page=100&page=0",
@@ -169,9 +170,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "successful_with_mixed_case_hostname",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "GitHub.Company.COM",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "GitHub.Company.COM",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://github.company.com/api/v3/app/installations?per_page=100&page=0",
@@ -182,7 +183,7 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "error_no_key_specified",
 			flags: map[string]interface{}{
-				"app-id": "123456",
+				"client-id": "123456",
 			},
 			setupMocks:    func() {},
 			expectedError: "either --key or --base64-key must be specified",
@@ -190,7 +191,7 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "error_both_keys_specified",
 			flags: map[string]interface{}{
-				"app-id":     "123456",
+				"client-id":  "123456",
 				"key":        "fixtures/test-private-key.test.pem",
 				"base64-key": keyBase64,
 			},
@@ -200,8 +201,8 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "error_invalid_key_file",
 			flags: map[string]interface{}{
-				"app-id": "123456",
-				"key":    "fixtures/nonexistent.pem",
+				"client-id": "123456",
+				"key":       "fixtures/nonexistent.pem",
 			},
 			setupMocks:    func() {},
 			expectedError: "unable to read key file",
@@ -209,7 +210,7 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "error_invalid_base64_key",
 			flags: map[string]interface{}{
-				"app-id":     "123456",
+				"client-id":  "123456",
 				"base64-key": "invalid-base64-string",
 			},
 			setupMocks:    func() {},
@@ -218,9 +219,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "error_http_request_fails",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "api.github.com",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "api.github.com",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://api.github.com/app/installations?per_page=100&page=0",
@@ -231,9 +232,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "error_http_status_not_200",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "api.github.com",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "api.github.com",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://api.github.com/app/installations?per_page=100&page=0",
@@ -244,9 +245,9 @@ func TestInstallations(t *testing.T) {
 		{
 			name: "error_invalid_json_response",
 			flags: map[string]interface{}{
-				"app-id":   "123456",
-				"key":      "fixtures/test-private-key.test.pem",
-				"hostname": "api.github.com",
+				"client-id": "123456",
+				"key":       "fixtures/test-private-key.test.pem",
+				"hostname":  "api.github.com",
 			},
 			setupMocks: func() {
 				httpmock.RegisterResponder("GET", "https://api.github.com/app/installations?per_page=100&page=0",
