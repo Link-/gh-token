@@ -7,6 +7,7 @@ require (
 	github.com/google/go-github/v55 v55.0.0
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/stretchr/testify v1.12.1
+	github.com/tailscale/hujson v0.0.0-20250605163823-992244df8c5a
 	github.com/urfave/cli/v2 v2.27.7
 )
 

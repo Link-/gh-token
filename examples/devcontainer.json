@@ -1,0 +1,42 @@
+{
+  // The clone's own repository plus one extra, with identical permissions,
+  // so no --merge-permissions is needed.
+  "name": "agent",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "initializeCommand": "gh token devcontainer-init \"${localEnv:HOME}/.cache/gh-token/${devcontainerId}\"",
+  "mounts": [
+    "source=${localEnv:HOME}/.cache/gh-token/${devcontainerId},target=/run/gh-token,type=bind,readonly"
+  ],
+  "postCreateCommand": "bash .devcontainer/gh-token/post-create.sh",
+  "postAttachCommand": "bash .devcontainer/gh-token/post-attach.sh",
+  "remoteEnv": { "SSH_AUTH_SOCK": "" },
+  "customizations": {
+    "codespaces": {
+      "repositories": {
+        "my-org/shared-charts": {
+          "permissions": {
+            "contents": "write",
+            "pull_requests": "write",
+            "issues": "write",
+            "actions": "read",
+            "checks": "read"
+          }
+        }
+      }
+    },
+    "gh-token": {
+      "currentRepository": {
+        "permissions": {
+          "contents": "write",
+          "pull_requests": "write",
+          "issues": "write",
+          "actions": "read",
+          "checks": "read"
+        }
+      }
+    }
+  }
+}

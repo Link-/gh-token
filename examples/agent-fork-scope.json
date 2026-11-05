@@ -1,0 +1,12 @@
+{
+  "repositories": {
+    "my-user/some-fork": {
+      "permissions": {
+        "contents": "write",
+        "workflows": "write",
+        "actions": "write",
+        "checks": "read"
+      }
+    }
+  }
+}

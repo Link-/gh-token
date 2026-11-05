@@ -1,0 +1,21 @@
+{
+  "customizations": {
+    "codespaces": {
+      "repositories": {
+        "my-org/shared-charts": { "permissions": { "contents": "read" } }
+      }
+    },
+    "gh-token": {
+      // permissions for the clone's own repo
+      "currentRepository": {
+        "permissions": {
+          "contents": "write",
+          "pull_requests": "write",
+          "issues": "write",
+          "actions": "read",
+          "checks": "read"
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
@@ -38,6 +39,14 @@ func Generate(c *cli.Context) error {
 		hostname = strings.TrimSuffix(endpoint, "/")
 	}
 
+	opts := readScopeOptions(c)
+	if printJWT && opts.active() {
+		return fmt.Errorf("--jwt cannot be combined with scope or output flags")
+	}
+	if err := opts.validate(installationID, tokenOnly); err != nil {
+		return err
+	}
+
 	if jwtExpiry < 1 || jwtExpiry > 10 {
 		jwtExpiry = 10
 	}
@@ -69,6 +78,21 @@ func Generate(c *cli.Context) error {
 		return nil
 	}
 
+	if opts.active() {
+		g := &scopedGeneration{
+			opts:           opts,
+			hostname:       hostname,
+			appID:          appID,
+			installationID: installationID,
+			jwtExpiry:      jwtExpiry,
+			privateKey:     privateKey,
+			jwt:            jsonWebToken,
+			tokenOnly:      tokenOnly,
+			silent:         silent,
+		}
+		return g.run()
+	}
+
 	if installationID == "" {
 		installationID, err = retrieveDefaultInstallationID(hostname, jsonWebToken)
 		if err != nil {
@@ -76,7 +100,7 @@ func Generate(c *cli.Context) error {
 		}
 	}
 
-	token, err := generateToken(hostname, jsonWebToken, installationID)
+	token, err := generateToken(hostname, jsonWebToken, installationID, nil)
 	if err != nil {
 		return fmt.Errorf("failed generating installation token: %w", err)
 	}
@@ -118,7 +142,7 @@ func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 	}()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return "", unexpectedStatusError(resp)
 	}
 
 	var response []github.Installation
@@ -135,16 +159,54 @@ func retrieveDefaultInstallationID(hostname, jwt string) (string, error) {
 	return strconv.FormatInt(*response[0].ID, 10), nil
 }
 
-func generateToken(hostname, jwt, installationID string) (*github.InstallationToken, error) {
-	endpoint := fmt.Sprintf("https://%s/app/installations/%s/access_tokens", hostname, installationID)
-	req, err := http.NewRequest("POST", endpoint, nil)
+// accessTokenRequest is the optional body of the "create an installation
+// access token" request. It can only narrow the installation's access.
+type accessTokenRequest struct {
+	Repositories  []string          `json:"repositories,omitempty"`
+	RepositoryIDs []int64           `json:"repository_ids,omitempty"`
+	Permissions   map[string]string `json:"permissions,omitempty"`
+}
+
+func (r *accessTokenRequest) isEmpty() bool {
+	return r == nil || (len(r.Repositories) == 0 && len(r.RepositoryIDs) == 0 && len(r.Permissions) == 0)
+}
+
+func generateToken(hostname, jwt, installationID string, body *accessTokenRequest) (*github.InstallationToken, error) {
+	raw, err := requestAccessToken(hostname, jwt, installationID, body)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create POST request to %s: %w", endpoint, err)
+		return nil, err
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", jwt))
-	req.Header.Add("Accept", "application/vnd.github+json")
-	req.Header.Add("X-GitHub-Api-Version", "2022-11-28")
-	req.Header.Add("User-Agent", "Link-/gh-token")
+
+	var response *github.InstallationToken
+	err = json.Unmarshal(raw, &response)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshal response body: %w", err)
+	}
+
+	return response, nil
+}
+
+// requestAccessToken POSTs to the access token endpoint and returns the raw
+// response body.
+func requestAccessToken(hostname, jwt, installationID string, body *accessTokenRequest) ([]byte, error) {
+	endpoint := fmt.Sprintf("https://%s/app/installations/%s/access_tokens", hostname, installationID)
+
+	var reqBody io.Reader
+	if !body.isEmpty() {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("unable to marshal request body: %w", err)
+		}
+		reqBody = bytes.NewReader(b)
+	}
+
+	req, err := newAPIRequest("POST", endpoint, jwt, reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if reqBody != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -156,19 +218,13 @@ func generateToken(hostname, jwt, installationID string) (*github.InstallationTo
 	}()
 
 	if resp.StatusCode != 201 {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, unexpectedStatusError(resp)
 	}
 
-	var response *github.InstallationToken
-	bytes, err := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read response body: %w", err)
 	}
 
-	err = json.Unmarshal(bytes, &response)
-	if err != nil {
-		return nil, fmt.Errorf("unable to unmarshal response body: %w", err)
-	}
-
-	return response, nil
+	return raw, nil
 }

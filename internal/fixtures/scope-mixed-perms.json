@@ -1,0 +1,6 @@
+{
+  "repositories": {
+    "my-org/app": { "permissions": { "contents": "write", "pull_requests": "write" } },
+    "my-org/shared-charts": { "permissions": { "contents": "read", "issues": "read" } }
+  }
+}

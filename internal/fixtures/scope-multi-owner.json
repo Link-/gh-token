@@ -1,0 +1,6 @@
+{
+  "repositories": {
+    "my-org/app": { "permissions": { "contents": "read" } },
+    "my-user/some-fork": { "permissions": { "contents": "read" } }
+  }
+}

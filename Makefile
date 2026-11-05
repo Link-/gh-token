@@ -3,7 +3,9 @@
 #   clean: remove all build artifacts
 #   build: build the project
 #   test: run all unit tests
-#   lint: run linting checks (golangci-lint)
+#   test-contrib: test the devcontainer integration scripts
+#   lint: run linting checks (golangci-lint, shellcheck when installed)
+#   lint-shell: lint shell scripts with shellcheck
 #   install-lint-deps: install linting dependencies
 #   release: create a new release by updating version numbers and committing changes
 #   help: print this help message
@@ -15,7 +17,7 @@
 PROJECT_NAME := "gh-token"
 
 # Mark targets as phony
-.PHONY: all clean build test lint install-lint-deps release
+.PHONY: all clean build test test-contrib lint lint-shell install-lint-deps release
 
 # Build the project
 all: clean build
@@ -30,13 +32,26 @@ build:
 	go build -o gh-token .
 
 # Run all unit tests
-test:
+test: test-contrib
 	go test ./...
+
+# Test the devcontainer integration scripts
+test-contrib:
+	bash contrib/devcontainer/tests/run.sh
 
 # Run linting checks
 lint:
 	@test -f .bin/golangci-lint || $(MAKE) install-lint-deps
 	./.bin/golangci-lint run
+	@$(MAKE) lint-shell
+
+# Lint shell scripts with shellcheck, when installed
+lint-shell:
+	@if command -v shellcheck >/dev/null 2>&1; then \
+		shellcheck -x contrib/devcontainer/*.sh contrib/devcontainer/tests/*.sh; \
+	else \
+		echo "shellcheck not installed, skipping shell script lint"; \
+	fi
 
 # Install linting dependencies
 install-lint-deps:
