@@ -36,13 +36,13 @@ func readKeyBase64(keyBase64 string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-func generateJWT(appID string, expiry int, key *rsa.PrivateKey) (string, error) {
+func generateJWT(iss string, expiry int, key *rsa.PrivateKey) (string, error) {
 	iat := jwt.NewNumericDate(time.Now().Add(-60 * time.Second))
 	exp := jwt.NewNumericDate(time.Now().Add(time.Duration(expiry) * 60 * time.Second))
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"iat": iat,
 		"exp": exp,
-		"iss": appID,
+		"iss": iss,
 	})
 	signedToken, err := token.SignedString(key)
 	if err != nil {
